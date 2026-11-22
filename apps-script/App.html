@@ -1,0 +1,1624 @@
+<script>
+(function () {
+'use strict';
+
+/* =========================================================
+   Zustand, Speicher, Synchronisierung
+   ========================================================= */
+var TABELLEN = ['Bereiche', 'Situationen', 'Werte', 'Regeln', 'Reflexionen', 'Skills', 'SkillLog', 'Dankbarkeit', 'CheckIns'];
+var STATUS = { gilt: 'Gilt', entwurf: 'Entwurf', pruefen: 'Überprüfen' };
+var WIRKUNG = {
+  geholfen: { label: 'Hat geholfen', zeichen: '✓' },
+  teils:    { label: 'Teilweise', zeichen: '~' },
+  nicht:    { label: 'Diesmal nicht', zeichen: '·' }
+};
+var FARBEN = ['#C9A45C', '#7E9C86', '#6F94AE', '#8A8FB8', '#B08A7E', '#A8805E', '#9A9A88', '#7FA3A0', '#B5848F', '#8C9BAB'];
+var ICONS = {
+  blatt: '<path d="M5 19c0-8 5-14 14-14 0 9-6 14-14 14z"/><path d="M5 19l8-8"/>',
+  menschen: '<circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5"/><path d="M15 14.2c2.6-.3 4.8 1.2 5.5 4.3"/>',
+  schild: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M12 8v8"/>',
+  puzzle: '<path d="M5 8h3.2a2.2 2.2 0 1 1 4.4 0H16v3.2a2.2 2.2 0 1 1 0 4.4V19H5z"/>',
+  welle: '<path d="M3 9.5c3-3 6 3 9 0s6 3 9 0"/><path d="M3 15c3-3 6 3 9 0s6 3 9 0"/>',
+  koffer: '<rect x="3.5" y="7" width="17" height="12" rx="2"/><path d="M9 7V5h6v2M3.5 12.5h17"/>',
+  haus: '<path d="M4 11l8-6 8 6v8H4z"/><path d="M10 19v-5h4v5"/>',
+  sprechblase: '<path d="M4 6h16v10H10l-4 3v-3H4z"/><path d="M8 11h8"/>',
+  flamme: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.6 1 2.5 2 3 .5-3-.5-5.5.5-8z"/>',
+  mond: '<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>',
+  blitz: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
+  kompass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  batterie: '<rect x="3" y="8" width="16" height="9" rx="2"/><path d="M21 11v3M6.5 11v3"/>',
+  hand: '<path d="M7 12V6.5a1.5 1.5 0 0 1 3 0V11M10 10.5V5a1.5 1.5 0 0 1 3 0v6M13 10.5V6a1.5 1.5 0 0 1 3 0v6M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7c-3 0-4.5-1.5-6-4l-2.2-3.8a1.4 1.4 0 0 1 2.3-1.6L7 13"/>',
+  tuer: '<path d="M6 20V4h9v16"/><path d="M15 6h3v14"/><path d="M4 20h16"/><path d="M12.5 12h.01"/>',
+  wirbel: '<path d="M4 6h15M6 10h12M8 14h8M10 18h4"/>',
+  herz: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  anker: '<circle cx="12" cy="5" r="2"/><path d="M12 7v13M8 10h8M5 13a7 7 0 0 0 14 0"/>',
+  berg: '<path d="M3 19l6-10 4 6 2-3 6 7z"/>',
+  sonne: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  uhr: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  tasse: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3v3M11 3v3"/>',
+  auge: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  wolke: '<path d="M7 18a4 4 0 0 1-.5-8 6 6 0 0 1 11.5 1.5A3.3 3.3 0 0 1 17.5 18z"/>',
+  weg: '<path d="M6 21c3-4 0-7 5-9.5S15 7 13 3"/><path d="M15 21c1.5-2 2.5-3.5 2-5"/>',
+  euro: '<path d="M17 6.5A6.5 6.5 0 1 0 17 17.5M4 10h9M4 14h9"/>',
+  stern: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+  kreis: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'
+};
+var EMOJI = { '🌿': 'blatt', '🤝': 'menschen', '🛡️': 'schild', '🧩': 'puzzle', '🌊': 'welle', '🧰': 'koffer', '🏡': 'haus',
+  '💬': 'sprechblase', '🗯️': 'sprechblase', '🔥': 'flamme', '🌙': 'mond', '⚡': 'blitz', '🧭': 'kompass', '🔋': 'batterie',
+  '✋': 'hand', '🐚': 'tuer', '🌪️': 'wirbel', '❤️': 'herz' };
+function ikon(sym, cls) {
+  var k = ICONS[sym] ? sym : EMOJI[sym];
+  if (k) return '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24">' + ICONS[k] + '</svg>';
+  return '<span class="ic-txt">' + esc(sym || '·') + '</span>';
+}
+
+var D = { Bereiche: [], Situationen: [], Werte: [], Regeln: [], Reflexionen: [], Skills: [], SkillLog: [], Dankbarkeit: [], CheckIns: [], sheetUrl: '' };
+var route = { view: 'kompass', param: null };
+var tiefe = 0;
+var filter = { q: '', bereich: '', fav: false, status: '' };
+var jetztAuswahl = [];
+var outbox = [];
+var arbeitet = false, nachladen = false, retryTimer = null, fehlerGemeldet = false;
+
+function ls(k, v) {
+  try {
+    if (v === undefined) return JSON.parse(localStorage.getItem(k));
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) { return null; }
+}
+function cache() { ls('lk_daten', D); }
+
+/* ---------- Daten: Google Sheet über Apps Script ---------- */
+var UID = 'ich';
+function rufe(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (res, rej) {
+    var r = google.script.run.withSuccessHandler(res).withFailureHandler(rej);
+    r[fn].apply(r, args);
+  });
+}
+
+/* Startausstattung, wenn das Sheet noch leer ist (feste IDs, damit nichts doppelt entsteht) */
+var START = {
+  Bereiche: [
+    ['f63d8260-dc7c-4a7c-b398-be472c78993a', 'Körper & Ruhe', '#7E9C86', 'blatt'], ['7b3933cf-8598-4a11-a036-5958cb4fc93b', 'Beziehungen', '#B08A7E', 'menschen'],
+    ['637e22df-0b28-4b4b-9694-51f1baf6ab74', 'Grenzen', '#C9A45C', 'schild'], ['8cef392e-f8ea-4ce5-97e1-530a13ce2250', 'Innere Anteile', '#8A8FB8', 'puzzle'],
+    ['51f4b5ce-fb6c-4b34-8a39-15602dd0d5d5', 'Gefühle & Krisen', '#6F94AE', 'welle'], ['8e3b89e3-6632-46b7-a077-24da57a385d0', 'Arbeit & Pflichten', '#A8805E', 'koffer'],
+    ['05519a4b-1a5c-464c-8d50-69f01fcb5ab2', 'Alltag & Zuhause', '#9A9A88', 'haus']
+  ],
+  Situationen: [
+    ['0a8b875a-77e8-4dfe-bc34-e5d49bfe7508', 'Ich bin überfordert', 'wirbel'], ['c9974c51-c041-4682-924c-9a3fb413ad58', 'Etwas triggert mich', 'blitz'],
+    ['ca5b02b0-b2fe-43f5-b928-0cb73e14224e', 'Konflikt mit jemandem', 'sprechblase'], ['52042f8f-5276-4e3f-8c13-d1924033d82b', 'Ich ziehe mich zurück', 'tuer'],
+    ['0c7dc79d-33af-496a-a6a3-426e239b300f', 'Ich muss etwas entscheiden', 'kompass'], ['e92e34fa-32d0-4a42-b24d-2815b8b7963b', 'Ich bin erschöpft', 'batterie'],
+    ['2e54ceed-82b6-4d3d-afa0-edd9062febba', 'Innen streiten Anteile', 'puzzle'], ['8d47a34d-360d-426b-bf0a-fef967571e09', 'Grübeln in der Nacht', 'mond'],
+    ['10ac9a84-530c-4599-b0bb-cba72935fd09', 'Ich muss Nein sagen', 'hand']
+  ]
+};
+function startausstattung() {
+  if (D.Bereiche.length || D.Situationen.length) return;
+  START.Bereiche.forEach(function (b, i) { sichere('Bereiche', { id: b[0], name: b[1], farbe: b[2], symbol: b[3], reihenfolge: i }); });
+  START.Situationen.forEach(function (s, i) { sichere('Situationen', { id: s[0], name: s[1], symbol: s[2], reihenfolge: i }); });
+}
+
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function sichere(tabelle, obj) {
+  if (!obj.id) obj.id = uuid();
+  var jetzt = new Date().toISOString();
+  if (tabelle === 'Regeln') { if (!obj.erstellt) obj.erstellt = jetzt; obj.geaendert = jetzt; }
+  if (tabelle === 'Reflexionen' && !obj.datum) obj.datum = jetzt;
+  var liste = D[tabelle];
+  var i = liste.findIndex(function (x) { return x.id === obj.id; });
+  if (i > -1) liste[i] = obj; else liste.push(obj);
+  cache();
+  outbox.push({ op: 'speichere', tabelle: tabelle, obj: obj });
+  ls('lk_outbox', outbox);
+  
+  abarbeiten();
+  return obj;
+}
+
+function entferne(tabelle, id) {
+  D[tabelle] = D[tabelle].filter(function (x) { return x.id !== id; });
+  if (tabelle === 'Regeln') D.Reflexionen = D.Reflexionen.filter(function (r) { return r.regelId !== id; });
+  cache();
+  outbox.push({ op: 'loesche', tabelle: tabelle, id: id });
+  ls('lk_outbox', outbox);
+  
+  abarbeiten();
+}
+
+function setSync(z) { var el = $('#sync'); el.className = 'sync' + (z ? ' ' + z : ''); }
+
+function abarbeiten() {
+  if (arbeitet || !outbox.length) return;
+  arbeitet = true;
+  setSync('laeuft');
+  var a = outbox[0];
+  var p = a.op === 'speichere' ? rufe('speichere', a.tabelle, a.obj) : rufe('loesche', a.tabelle, a.id);
+  p.then(function () {
+    outbox.shift();
+    ls('lk_outbox', outbox);
+    
+    arbeitet = false;
+    fehlerGemeldet = false;
+    if (outbox.length) return abarbeiten();
+    setSync('');
+    if (nachladen) { nachladen = false; laden(); }
+  }).catch(function () {
+    arbeitet = false;
+    setSync('fehler');
+    if (!fehlerGemeldet) { toast('Gerade keine Verbindung. Ich speichere, sobald es wieder geht.'); fehlerGemeldet = true; }
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(abarbeiten, 20000);
+  });
+}
+
+function laden() {
+  return rufe('ladeAlles').then(function (d) {
+    if (outbox.length) { nachladen = true; return; }
+    TABELLEN.forEach(function (t) { D[t] = d[t] || []; });
+    D.sheetUrl = d.sheetUrl || '';
+    cache();
+    if (route.view !== 'edit') render(true);
+  }).catch(function (e) {
+    if (!D.Regeln.length && !D.Bereiche.length) {
+      $('#view').innerHTML =
+        '<div class="leer"><div class="gross">Der Kompass findet gerade keine Verbindung.</div>' +
+        '<p>' + esc(e && e.message ? e.message : 'Unbekannter Fehler') + '</p>' +
+        '<button class="btn primaer" data-act="neuLaden">Noch einmal versuchen</button></div>';
+    } else {
+      setSync('fehler');
+    }
+  });
+}
+
+/* =========================================================
+   Helfer
+   ========================================================= */
+function $(s, root) { return (root || document).querySelector(s); }
+function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function nachReihe(a, b) { return (Number(a.reihenfolge) || 0) - (Number(b.reihenfolge) || 0); }
+function ids(s) { return String(s || '').split(',').filter(Boolean); }
+function bereich(id) { return D.Bereiche.find(function (b) { return b.id === id; }); }
+function situation(id) { return D.Situationen.find(function (s) { return s.id === id; }); }
+function wert(id) { return D.Werte.find(function (w) { return w.id === id; }); }
+function regel(id) { return D.Regeln.find(function (r) { return r.id === id; }); }
+function farbe(r) { var b = bereich(r.bereichId); return b ? b.farbe : 'var(--line-2)'; }
+function datum(iso) {
+  var d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+function sortRegeln(liste) {
+  var rang = { gilt: 0, pruefen: 1, entwurf: 2 };
+  return liste.slice().sort(function (a, b) {
+    if ((a.favorit === 'ja') !== (b.favorit === 'ja')) return a.favorit === 'ja' ? -1 : 1;
+    var s = (rang[a.status] || 0) - (rang[b.status] || 0);
+    if (s) return s;
+    return String(a.titel || a.kernsatz).localeCompare(String(b.titel || b.kernsatz), 'de');
+  });
+}
+function svg(name) {
+  var p = {
+    stern: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+    sternVoll: '<path fill="currentColor" d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
+    stift: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    muell: '<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    haken: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    pfeil: '<path d="M9 5l7 7-7 7"/>',
+    suche: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+    kompass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    notiz: '<path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h4"/>'
+  }[name] || '';
+  return '<svg viewBox="0 0 24 24">' + p + '</svg>';
+}
+
+var toastTimer;
+function toast(t) {
+  var el = $('#toast');
+  el.textContent = t;
+  el.classList.add('zeigen');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('zeigen'); }, 2600);
+}
+
+/* =========================================================
+   Navigation
+   ========================================================= */
+var HAUPT = ['kompass', 'regeln', 'sos', 'rueckblick', 'mehr'];
+var stapel = [];
+
+function geh(view, param) {
+  if (HAUPT.indexOf(view) > -1) stapel = []; else stapel.push(route);
+  route = { view: view, param: param == null ? null : param };
+  tiefe = stapel.length;
+  render();
+}
+function zurueck() {
+  var r = stapel.pop();
+  tiefe = stapel.length;
+  route = r || { view: 'kompass', param: null };
+  render();
+}
+try {
+  google.script.history.setChangeHandler(function (e) {
+    var s = e.state || {};
+    route = { view: s.view || 'kompass', param: s.param == null ? null : s.param };
+    tiefe = s.tiefe || 0;
+    schliesseModal();
+    render();
+  });
+} catch (e) {}
+
+function render(still) {
+  var v = VIEWS[route.view] ? route.view : 'kompass';
+  var titel = '';
+  var html = VIEWS[v](route.param, function (t) { titel = t; });
+  var el = $('#view');
+  if (still) {
+    el.innerHTML = html;
+  } else {
+    el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+    el.innerHTML = html;
+    window.scrollTo(0, 0);
+  }
+  var unter = HAUPT.indexOf(v) === -1;
+  $('#btnZurueck').hidden = !unter;
+  $('#brand').hidden = unter;
+  $('#topTitel').hidden = !unter;
+  $('#topTitel').textContent = titel;
+  var navZiel = { regel: 'regeln', bereich: 'regeln', jetzt: 'sos', edit: 'regeln', werte: 'regeln', skill: 'sos', skills: 'sos', skillFertig: 'sos', verlauf: 'rueckblick', woche: 'rueckblick', erfahrungen: 'rueckblick', dank: 'kompass', checkin: 'kompass', bereiche: 'mehr', situationen: 'mehr', erinnerung: 'mehr' }[v] || v;
+  document.body.classList.toggle('krise', v === 'sos' || v === 'skill');
+  $$('#nav button').forEach(function (b) { b.classList.toggle('aktiv', b.dataset.nav === navZiel); });
+  if (NACH[v]) NACH[v](route.param);
+}
+
+/* =========================================================
+   Bausteine
+   ========================================================= */
+function karte(r) {
+  var b = bereich(r.bereichId);
+  return '<button class="karte" style="--c:' + esc(farbe(r)) + '" data-act="regel" data-id="' + esc(r.id) + '">' +
+    '<div class="kopf">' + (b ? esc(b.name) : 'Ohne Bereich') +
+      (r.status && r.status !== 'gilt' ? ' <span class="badge ' + esc(r.status) + '">' + esc(STATUS[r.status] || r.status) + '</span>' : '') +
+      (r.favorit === 'ja' ? '<span class="stern">★</span>' : '') +
+    '</div>' +
+    (r.titel ? '<div class="titel">' + esc(r.titel) + '</div>' : '') +
+    (r.kernsatz ? '<div class="kern">' + esc(r.kernsatz) + '</div>' : '') +
+  '</button>';
+}
+
+function schritteHtml(r) {
+  var s = String(r.schritte || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+  if (!s.length) return '';
+  return '<ul class="schritte">' + s.map(function (x) {
+    var m = x.match(/^([^:]{3,48}):\s+(.+)$/);
+    return '<li data-act="haken"><span class="kreis">' + svg('haken') + '</span><span>' + (m ? '<b>' + esc(m[1]) + '</b><span class="txt">' + esc(m[2]) + '</span>' : esc(x)) + '</span></li>';
+  }).join('') + '</ul>';
+}
+
+function leer(gross, klein, knopf) {
+  return '<div class="leer"><div class="gross">' + gross + '</div>' + (klein ? '<p>' + klein + '</p>' : '') + (knopf || '') + '</div>';
+}
+
+function rose() {
+  var P = function (r, grad) { var a = grad * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
+  var t = '';
+  for (var i = 0; i < 120; i++) {
+    var g = i * 3, haupt = g % 90 === 0, mittel = g % 30 === 0;
+    var l = haupt ? 7 : mittel ? 5 : 2.5;
+    t += '<path class="' + (haupt ? 'tick-h' : mittel ? 'tick-m' : 'tick') + '" d="M' + P(88, g) + 'L' + P(88 - l, g) + '"/>';
+  }
+  var zahlen = '';
+  [30, 60, 120, 150, 210, 240, 300, 330].forEach(function (g) {
+    var xy = P(73, g).split(' ');
+    zahlen += '<text class="grad" x="' + xy[0] + '" y="' + xy[1] + '" dy="3">' + g + '</text>';
+  });
+  var spitze = function (g, L, w, cls) {
+    return '<path class="' + cls + '-l" d="M100 100L' + P(L, g) + 'L' + P(w, g - 45) + 'Z"/>' +
+           '<path class="' + cls + '-d" d="M100 100L' + P(L, g) + 'L' + P(w, g + 45) + 'Z"/>';
+  };
+  var stern = '';
+  [45, 135, 225, 315].forEach(function (g) { stern += spitze(g, 40, 9, 'neben'); });
+  [90, 180, 270].forEach(function (g) { stern += spitze(g, 60, 11, 'haupt'); });
+  stern += spitze(0, 62, 11, 'nord');
+  var buchst = '<text class="himmel nord-t" x="100" y="' + (100 - 66 + 4) + '">N</text>' +
+    '<text class="himmel" x="' + (100 + 66) + '" y="104">O</text><text class="himmel" x="100" y="' + (100 + 66 + 4) + '">S</text>' +
+    '<text class="himmel" x="' + (100 - 66) + '" y="104">W</text>';
+  return '<svg class="rose" viewBox="0 0 200 200" aria-hidden="true"><defs>' +
+    '<linearGradient id="messing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E2B3"/><stop offset=".45" stop-color="#C9A45C"/><stop offset="1" stop-color="#7A5A24"/></linearGradient>' +
+    '<linearGradient id="messingD" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B89049"/><stop offset="1" stop-color="#5E4318"/></linearGradient>' +
+    '<radialGradient id="glanz" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="var(--glow)"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>' +
+    '</defs>' +
+    '<circle cx="100" cy="100" r="99" fill="url(#glanz)" stroke="none"/>' +
+    '<circle class="bezel" cx="100" cy="100" r="96"/><circle class="bezel-2" cx="100" cy="100" r="92"/>' +
+    '<g class="drehring"><circle class="ring-p" cx="100" cy="100" r="80"/></g>' + t + zahlen +
+    '<circle class="ring-i" cx="100" cy="100" r="56"/>' +
+    '<g class="stern">' + stern + '</g>' + buchst +
+    '<circle class="mitte" cx="100" cy="100" r="5.5"/><circle class="mitte-p" cx="100" cy="100" r="1.8"/></svg>';
+}
+
+/* =========================================================
+   Ansichten
+   ========================================================= */
+var VIEWS = {};
+var NACH = {};
+
+VIEWS.kompass = function () {
+  var h = new Date().getHours();
+  var gruss = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 17 ? 'Guten Tag' : h < 22 ? 'Guten Abend' : 'Gute Nacht';
+  var name = ls('lk_name');
+  var html = '<div class="gruss">' + esc(gruss + (name ? ', ' + name : '')) + '</div>';
+  html += anspKopf();
+  html += heuteKarte();
+
+  var pool = D.Regeln.filter(function (r) { return r.kernsatz && r.status !== 'entwurf'; });
+  if (pool.length) {
+    var tag = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+    var a = pool.sort(function (x, y) { return x.id < y.id ? -1 : 1; })[tag % pool.length];
+    html += '<div class="anker" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
+      '<div class="label">Ankersatz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
+      (a.titel ? '<div class="quelle">' + esc(a.titel) + '</div>' : '') + '</div>';
+  }
+  return html;
+};
+function heuteKarte() {
+  var h = new Date().getHours(), art = h < 14 ? 'morgen' : 'abend', ci = checkinHeute(art);
+  var n = dankAm(heute()).length, wt = new Date().getDay();
+  var zeile = function (act, id, sym, titel, sub, fertig) {
+    return '<button class="heute-z' + (fertig ? ' fertig' : '') + '" data-act="' + act + '" data-id="' + id + '"><span class="hk">' + (fertig ? svg('haken') : ikon(sym)) + '</span>' +
+      '<span class="txt">' + titel + '<small>' + sub + '</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+  };
+  var html = '<h3>Heute für dich</h3><div class="block heute">';
+  html += zeile('checkin', art, art === 'morgen' ? 'sonne' : 'mond', CHECK[art].titel, ci ? 'Erledigt' : '10 Sekunden', !!ci);
+  html += zeile('nav', 'dank', 'herz', 'Dankbarkeit', n >= DANK_N ? n + ' Dinge notiert' : n + ' von ' + DANK_N + ' notiert', n >= DANK_N);
+  if (wt === 0 || wt === 1) html += zeile('nav', 'rueckblick', 'weg', 'Wochenrückblick', 'Deine letzten 7 Tage', false);
+  return html + '</div>';
+}
+
+VIEWS.jetzt = function (_, setTitel) {
+  setTitel('Was ist gerade los?');
+  var html = '<h2>Du musst jetzt nichts lösen.</h2><p class="leise">Wähle, was am ehesten passt. Auch mehreres ist in Ordnung.</p>';
+  html += '<div id="atmenBox"><button class="btn ghost voll" data-act="atmen" style="margin:12px 0 18px">Erst einmal durchatmen</button></div>';
+  html += '<div class="situationen">' + D.Situationen.slice().sort(nachReihe).map(function (s) {
+    return '<button class="sit' + (jetztAuswahl.indexOf(s.id) > -1 ? ' an' : '') + '" data-act="sitWahl" data-id="' + esc(s.id) + '">' +
+      '<span class="s">' + ikon(s.symbol) + '</span>' + esc(s.name) + '</button>';
+  }).join('') + '</div>';
+  if (!D.Situationen.length) html += leer('Noch keine Situationen angelegt.', 'Unter „Mehr“ kannst du sie anlegen.', '');
+  html += '<div id="jetztTreffer"></div>';
+  return html;
+};
+NACH.jetzt = function () { zeigeTreffer(); };
+NACH.kompass = function () {
+  var r = $('#anspRegler'); if (r) r.addEventListener('input', function () { anspSetze(+r.value); });
+  var n = $('#anspNotiz'); if (n) n.addEventListener('input', function () { TRACK.notiz = n.value; });
+};
+
+function zeigeTreffer() {
+  var box = $('#jetztTreffer');
+  if (!box) return;
+  if (!jetztAuswahl.length) { box.innerHTML = ''; return; }
+  var treffer = sortRegeln(D.Regeln.filter(function (r) {
+    return ids(r.situationen).some(function (i) { return jetztAuswahl.indexOf(i) > -1; });
+  }));
+  var html = '<h3>Was mir jetzt hilft</h3>';
+  if (!treffer.length) {
+    html += leer('Dafür gibt es noch keine Regel.', 'Vielleicht ist das ein guter Moment, später eine anzulegen.',
+      '<button class="btn" data-act="neuAusJetzt">' + svg('plus') + 'Regel dafür anlegen</button>');
+  } else {
+    html += '<div class="liste">' + treffer.map(function (r) {
+      return '<div class="regel-gross" style="--c:' + esc(farbe(r)) + '">' +
+        '<div class="meta">' + esc(r.titel || '') + (r.favorit === 'ja' ? ' <span style="color:var(--accent)">★</span>' : '') + '</div>' +
+        '<div class="kern">' + esc(r.kernsatz || r.titel) + '</div>' + schritteHtml(r) +
+        (ids(r.skills).length ? '<div class="liste" style="margin-top:12px">' + ids(r.skills).map(skill).filter(Boolean).map(skillZeile).join('') + '</div>' : '') +
+        '<div class="aktionen"><button class="btn primaer" data-act="reflexion" data-id="' + esc(r.id) + '">' + svg('notiz') + 'Hat es geholfen?</button>' +
+        '<button class="btn ghost" data-act="regel" data-id="' + esc(r.id) + '">Ganze Regel</button></div></div>';
+    }).join('') + '</div>';
+  }
+  box.innerHTML = html;
+}
+
+VIEWS.regeln = function () {
+  var html = '<h2>Dein Kompass</h2><p class="leise">Deine Regeln nach Lebensbereich. Wähle einen Bereich, um nur seine Regeln zu sehen.</p>' +
+    '<div class="kompass-akt"><button class="btn primaer" data-act="neu"' + (filter.bereich ? ' data-bereich="' + esc(filter.bereich) + '"' : '') + '>' + svg('plus') + 'Neue Regel</button><button class="btn" data-act="neuKI">✦ Mit KI entwickeln</button></div>';
+  html += '<div class="suche">' + svg('suche') + '<input type="search" id="suchFeld" placeholder="Suchen in Regeln, Gründen, Schritten …" value="' + esc(filter.q) + '"></div>';
+  html += '<div class="kacheln bgitter" aria-label="Lebensbereich wählen">' +
+    '<button class="kachel alle' + (!filter.bereich && !filter.fav ? ' an' : '') + '" style="--c:var(--accent)" data-act="filterAlle"><span class="sym">∗</span><span class="name">Alle</span><span class="zahl">' + D.Regeln.length + ' Regeln</span></button>' +
+    '<button class="kachel' + (filter.fav ? ' an' : '') + '" style="--c:var(--accent)" data-act="filterFav"><span class="sym">' + svg('sternVoll') + '</span><span class="name">Leitsterne</span><span class="zahl">' + D.Regeln.filter(function (r) { return r.favorit === 'ja'; }).length + '</span></button>' +
+    D.Bereiche.slice().sort(nachReihe).map(function (b) {
+      var n = D.Regeln.filter(function (r) { return r.bereichId === b.id; }).length;
+      return '<button class="kachel' + (filter.bereich === b.id ? ' an' : '') + '" style="--c:' + esc(b.farbe) + '" data-act="filterBereich" data-id="' + esc(b.id) + '"><span class="wm">' + ikon(b.symbol) + '</span><span class="sym">' + ikon(b.symbol) + '</span><span class="name">' + esc(b.name) + '</span><span class="zahl">' + n + (n === 1 ? ' Regel' : ' Regeln') + '</span></button>';
+    }).join('') + '</div>';
+  var fb = bereich(filter.bereich);
+  if (fb) html += '<div class="bkopf" style="--c:' + esc(fb.farbe) + '"><span class="sym">' + ikon(fb.symbol) + '</span><b>' + esc(fb.name) + '</b><button class="btn ghost" data-act="filterAlle">Alle zeigen</button></div>';
+  html += '<div class="chips" style="margin-bottom:18px">' + Object.keys(STATUS).map(function (k) {
+    return '<button class="chip klein' + (filter.status === k ? ' an' : '') + '" data-act="filterStatus" data-id="' + k + '">' + STATUS[k] + '</button>';
+  }).join('') + '</div>';
+  html += '<div id="regelListe"></div>';
+  html += '<h3>Was dahinter steht</h3><button class="zeile" data-act="nav" data-id="werte"><span class="sym" style="color:var(--accent)">✦</span><span class="txt">Deine Werte<small>' + D.Werte.length + ' Werte geben deinen Regeln die Richtung</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+  return html;
+};
+NACH.regeln = function () {
+  zeigeListe();
+  var f = $('#suchFeld');
+  f.addEventListener('input', function () { filter.q = f.value; zeigeListe(); });
+};
+function zeigeListe() {
+  var q = filter.q.trim().toLowerCase();
+  var liste = D.Regeln.filter(function (r) {
+    if (filter.fav && r.favorit !== 'ja') return false;
+    if (filter.bereich && r.bereichId !== filter.bereich) return false;
+    if (filter.status && (r.status || 'gilt') !== filter.status) return false;
+    if (q) {
+      var sitNamen = ids(r.situationen).map(function (i) { var s = situation(i); return s ? s.name : ''; }).join(' ');
+      var heu = [r.titel, r.kernsatz, r.warum, r.schritte, sitNamen].join(' ').toLowerCase();
+      return q.split(/\s+/).every(function (w) { return heu.indexOf(w) > -1; });
+    }
+    return true;
+  });
+  $('#regelListe').innerHTML = liste.length
+    ? '<div class="liste">' + sortRegeln(liste).map(karte).join('') + '</div>'
+    : (D.Regeln.length
+        ? leer('Nichts gefunden.', 'Probier ein anderes Wort oder lösche den Filter.', '')
+        : leer('Hier entsteht dein Kompass.', 'Jede Regel, die du aufschreibst, ist ein Stück innere Ordnung.', '<button class="btn primaer" data-act="neu">' + svg('plus') + 'Erste Regel anlegen</button>'));
+}
+
+VIEWS.bereich = function (id, setTitel) {
+  var b = id === '_ohne' ? { id: '_ohne', name: 'Ohne Bereich', symbol: '·', farbe: 'var(--muted)' } : bereich(id);
+  if (!b) return leer('Diesen Bereich gibt es nicht mehr.', '', '');
+  setTitel(b.name);
+  var liste = D.Regeln.filter(function (r) { return id === '_ohne' ? !bereich(r.bereichId) : r.bereichId === id; });
+  var html = '<div class="meta" style="--c:' + esc(b.farbe) + '"><span class="punkt"></span>Lebensbereich</div>';
+  html += '<div class="bereich-kopf" style="--c:' + esc(b.farbe) + '"><span class="sym gross">' + ikon(b.symbol) + '</span><h2>' + esc(b.name) + '</h2></div>';
+  html += liste.length ? '<div class="liste" style="margin-top:16px">' + sortRegeln(liste).map(karte).join('') + '</div>'
+                       : leer('Noch keine Regel in diesem Bereich.', 'Wie möchtest du hier mit dir umgehen?', '');
+  html += '<div class="aktionen">';
+  if (id !== '_ohne') {
+    html += '<button class="btn primaer" data-act="neu" data-bereich="' + esc(id) + '">' + svg('plus') + 'Regel hier anlegen</button>';
+    html += '<button class="btn ghost" data-act="bereichEdit" data-id="' + esc(id) + '">' + svg('stift') + 'Bereich bearbeiten</button>';
+  }
+  return html + '</div>';
+};
+
+VIEWS.regel = function (id, setTitel) {
+  var r = regel(id);
+  if (!r) return leer('Diese Regel gibt es nicht mehr.', '', '<button class="btn" data-act="nav" data-id="regeln">Zu den Regeln</button>');
+  setTitel(r.titel || 'Regel');
+  var b = bereich(r.bereichId);
+  var html = '<div class="meta" style="--c:' + esc(farbe(r)) + '"><span class="punkt"></span>' + (b ? esc(b.name) : 'Ohne Bereich') +
+    ' <span class="badge ' + esc(r.status || 'gilt') + '">' + esc(STATUS[r.status] || 'Gilt') + '</span></div>';
+  if (r.titel) html += '<h2>' + esc(r.titel) + '</h2>';
+  if (r.kernsatz) html += '<div class="detail-kern">' + esc(r.kernsatz) + '</div>';
+  if (r.warum) html += '<h3>Warum mir das wichtig ist</h3><div class="block"><p>' + esc(r.warum).replace(/\n/g, '<br>') + '</p></div>';
+  var st = schritteHtml(r);
+  if (st) html += '<h3>So gehe ich vor</h3><div class="block" style="padding:8px 12px">' + st + '</div>';
+  html += vorlagenHtml(r);
+  var rsk = ids(r.skills).map(skill).filter(Boolean);
+  if (rsk.length) html += '<h3>Wenn es akut wird</h3><div class="liste">' + rsk.map(skillZeile).join('') + '</div>';
+  var sits = ids(r.situationen).map(situation).filter(Boolean);
+  if (sits.length) html += '<h3>Wann sie gilt</h3><div class="chips">' + sits.map(function (s) { return '<span class="chip klein">' + ikon(s.symbol) + esc(s.name) + '</span>'; }).join('') + '</div>';
+  var ws = ids(r.werte).map(wert).filter(Boolean);
+  if (ws.length) html += '<h3>Dahinter steht</h3><div class="chips">' + ws.map(function (w) { return '<button class="chip klein" data-act="wertEdit" data-id="' + esc(w.id) + '">' + esc(w.name) + '</button>'; }).join('') + '</div>';
+
+  var refl = D.Reflexionen.filter(function (x) { return x.regelId === r.id; }).sort(function (a, b) { return a.datum < b.datum ? 1 : -1; });
+  html += '<h3>Meine Erfahrungen' + (refl.length ? ' · ' + refl.length : '') + '</h3>';
+  if (refl.length) html += '<div class="block" style="padding:4px 16px">' + refl.map(reflexHtml).join('') + '</div>';
+  html += '<div class="aktionen">' +
+    '<button class="btn primaer" data-act="reflexion" data-id="' + esc(r.id) + '">' + svg('notiz') + 'Erfahrung festhalten</button>' +
+    '<button class="btn" data-act="favorit" data-id="' + esc(r.id) + '">' + svg(r.favorit === 'ja' ? 'sternVoll' : 'stern') + (r.favorit === 'ja' ? 'Leitstern' : 'Als Leitstern') + '</button>' +
+    '<button class="btn" data-act="bearbeiten" data-id="' + esc(r.id) + '">' + svg('stift') + 'Bearbeiten</button>' +
+    '<button class="btn gefahr" data-act="regelLoeschen" data-id="' + esc(r.id) + '">' + svg('muell') + 'Löschen</button></div>';
+  if (r.geaendert) html += '<p class="leise klein" style="margin-top:18px">Zuletzt geändert am ' + esc(datum(r.geaendert)) + '</p>';
+  return html;
+};
+
+function reflexHtml(x, mitRegel) {
+  var w = WIRKUNG[x.wirkung] || { label: '', zeichen: '·' };
+  var r = mitRegel ? regel(x.regelId) : null;
+  return '<div class="reflex"><span class="w ' + esc(x.wirkung) + '">' + w.zeichen + '</span><div>' +
+    '<div class="datum">' + esc(datum(x.datum)) + (w.label ? ' · ' + w.label : '') + '</div>' +
+    (r ? '<button style="font-weight:700;text-align:left" data-act="regel" data-id="' + esc(r.id) + '">' + esc(r.titel || r.kernsatz) + '</button>' : '') +
+    (x.notiz ? '<div>' + esc(x.notiz).replace(/\n/g, '<br>') + '</div>' : '') + '</div></div>';
+}
+
+VIEWS.edit = function (param, setTitel) {
+  var p = param || {};
+  var r = p.id ? regel(p.id) : null;
+  var neu = !r;
+  r = r || { titel: '', kernsatz: '', warum: '', schritte: '', vorlagen: '', skills: '', bereichId: p.bereich || filter.bereich || '', situationen: (p.situationen || []).join(','), werte: '', status: 'gilt', favorit: '' };
+  setTitel(neu ? 'Neue Regel' : 'Regel bearbeiten');
+  var sitIds = ids(r.situationen), wIds = ids(r.werte);
+  var html = '<form id="regelForm" autocomplete="off">' + kiBox('kiRegelText', 'Mit KI entwickeln', 'Beschreib eine Situation oder deine grobe Regel, z. B. „Mein Chef klärt keine Abläufe und ich stopfe ständig Lücken.“', 'Inspiration und Ausformulieren', 'kiRegel');
+  html += '<div class="feld"><label for="fTitel">Titel</label><input type="text" id="fTitel" maxlength="120" placeholder="z. B. Erst sicher, dann entscheiden" value="' + esc(r.titel) + '"></div>';
+  html += '<div class="feld"><label for="fKern">Die Regel in einem Satz</label><div class="hilfe">Kurz und klar, so wie du sie dir in einem schweren Moment sagen würdest.</div>' +
+    '<textarea id="fKern" rows="3" placeholder="Wenn …, dann …">' + esc(r.kernsatz) + '</textarea></div>';
+  html += '<div class="feld"><label for="fWarum">Warum mir das wichtig ist</label><textarea id="fWarum" rows="3" placeholder="Was schützt oder stärkt diese Regel in mir?">' + esc(r.warum) + '</textarea></div>';
+  html += '<div class="feld"><label for="fSchritte">So gehe ich vor</label><div class="hilfe">Ein Schritt pro Zeile. Mit „Überschrift: Text“ bekommt ein Schritt eine Überschrift.</div><textarea id="fSchritte" rows="5" placeholder="Erster Schritt&#10;Zweiter Schritt">' + esc(r.schritte) + '</textarea></div>';
+  html += '<div class="feld"><label for="fVorlagen">Formulierungen und Vorlagen</label><div class="hilfe">Sätze, die du sagen oder schreiben kannst, z. B. eine E-Mail an den Chef. Erste Zeile ist die Überschrift, Leerzeile trennt.</div><textarea id="fVorlagen" rows="5" placeholder="E-Mail an den Chef&#10;Hallo …">' + esc(r.vorlagen || '') + '</textarea></div>';
+  html += '<div class="feld"><span class="label">Wenn es akut wird: passende Skills</span><div class="chips" id="fSkills">' +
+    D.Skills.map(function (s) { return '<button type="button" class="chip klein sosc' + (ids(r.skills).indexOf(s.id) > -1 ? ' an' : '') + '" data-act="toggle" data-id="' + esc(s.id) + '">' + esc(s.titel) + '</button>'; }).join('') + '</div></div>';
+  html += '<div class="feld"><label for="fBereich">Lebensbereich</label><select id="fBereich"><option value="">Ohne Bereich</option>' +
+    D.Bereiche.slice().sort(nachReihe).map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === r.bereichId ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>';
+  html += '<div class="feld"><span class="label">Wann sie gilt</span><div class="chips" id="fSits">' +
+    D.Situationen.slice().sort(nachReihe).map(function (s) { return '<button type="button" class="chip klein' + (sitIds.indexOf(s.id) > -1 ? ' an' : '') + '" data-act="toggle" data-id="' + esc(s.id) + '">' + ikon(s.symbol) + esc(s.name) + '</button>'; }).join('') +
+    '<button type="button" class="chip klein" data-act="sitNeuInline">+ Neue Situation</button></div></div>';
+  html += '<div class="feld"><span class="label">Dahinter steht der Wert</span><div class="chips" id="fWerte">' +
+    D.Werte.slice().sort(nachReihe).map(function (w) { return '<button type="button" class="chip klein' + (wIds.indexOf(w.id) > -1 ? ' an' : '') + '" data-act="toggle" data-id="' + esc(w.id) + '">' + esc(w.name) + '</button>'; }).join('') +
+    '<button type="button" class="chip klein" data-act="wertNeuInline">+ Neuer Wert</button></div></div>';
+  html += '<div class="feld"><span class="label">Status</span><div class="segment" id="fStatus">' + Object.keys(STATUS).map(function (k) {
+    return '<button type="button" data-act="segment" data-id="' + k + '"' + ((r.status || 'gilt') === k ? ' class="an"' : '') + '>' + STATUS[k] + '</button>';
+  }).join('') + '</div></div>';
+  html += '<div class="feld"><span class="label">Leitstern</span><div class="segment" id="fFav">' +
+    '<button type="button" data-act="segment" data-id="ja"' + (r.favorit === 'ja' ? ' class="an"' : '') + '>★ Ja, wichtig</button>' +
+    '<button type="button" data-act="segment" data-id=""' + (r.favorit !== 'ja' ? ' class="an"' : '') + '>Nein</button></div></div>';
+  html += '<div class="aktionen"><button type="submit" class="btn primaer">' + svg('haken') + 'Speichern</button>' +
+    '<button type="button" class="btn ghost" data-act="zurueck">Abbrechen</button></div></form>';
+  return html;
+};
+NACH.edit = function (param) {
+  var p = param || {};
+  if (p.ki) setTimeout(function () { var t = $('#kiRegelText'); if (t) t.focus(); }, 80);
+  $('#regelForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var alt = p.id ? regel(p.id) : null;
+    var r = {
+      id: alt ? alt.id : '',
+      titel: $('#fTitel').value.trim(),
+      kernsatz: $('#fKern').value.trim(),
+      warum: $('#fWarum').value.trim(),
+      schritte: $('#fSchritte').value.trim(),
+      vorlagen: $('#fVorlagen').value.trim(),
+      skills: $$('#fSkills .chip.an').map(function (c) { return c.dataset.id; }).join(','),
+      bereichId: $('#fBereich').value,
+      situationen: $$('#fSits .chip.an').map(function (c) { return c.dataset.id; }).filter(Boolean).join(','),
+      werte: $$('#fWerte .chip.an').map(function (c) { return c.dataset.id; }).filter(Boolean).join(','),
+      status: ($('#fStatus .an') || {}).dataset ? $('#fStatus .an').dataset.id : 'gilt',
+      favorit: $('#fFav .an') ? $('#fFav .an').dataset.id : '',
+      erstellt: alt ? alt.erstellt : ''
+    };
+    if (!r.titel && !r.kernsatz) { toast('Gib der Regel einen Titel oder einen Satz.'); $('#fTitel').focus(); return; }
+    sichere('Regeln', r);
+    toast(alt ? 'Regel gespeichert' : 'Neue Regel ist in deinem Kompass');
+    // Bearbeiten-Ansicht durch die Detailansicht ersetzen
+    route = { view: 'regel', param: r.id };
+    
+    render();
+  });
+};
+
+VIEWS.werte = function (_, setTitel) {
+  if (setTitel) setTitel('Werte');
+  var html = '<h2>Deine Werte</h2><p class="leise">Werte sind die Richtung, in die dein Kompass zeigt. Regeln sind die Wege dorthin.</p>';
+  var liste = D.Werte.slice().sort(nachReihe);
+  if (!liste.length) {
+    html += leer('Noch keine Werte notiert.', 'Was ist dir im Leben wirklich wichtig? Zum Beispiel Sicherheit, Ehrlichkeit, Selbstmitgefühl.', '');
+  } else {
+    html += '<div>' + liste.map(function (w) {
+      var n = D.Regeln.filter(function (r) { return ids(r.werte).indexOf(w.id) > -1; }).length;
+      return '<button class="zeile" data-act="wertEdit" data-id="' + esc(w.id) + '"><span class="sym" style="color:var(--accent)">✦</span>' +
+        '<span class="txt"><strong>' + esc(w.name) + '</strong><small>' + esc(w.beschreibung || (n + (n === 1 ? ' Regel' : ' Regeln'))) + '</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+    }).join('') + '</div>';
+  }
+  return html + '<div class="aktionen"><button class="btn primaer" data-act="wertEdit">' + svg('plus') + 'Wert hinzufügen</button></div>';
+};
+
+VIEWS.mehr = function () {
+  var theme = ls('lk_theme') || 'nacht';
+  var pfeil = svg('pfeil').replace('<svg', '<svg class="pfeil"');
+  var z = function (act, sym, titel, sub) {
+    return '<button class="zeile" data-act="' + act + '"><span class="sym">' + sym + '</span><span class="txt">' + titel + (sub ? '<small>' + sub + '</small>' : '') + '</span>' + pfeil + '</button>';
+  };
+  var html = '<h2>Mehr</h2>';
+  html += '<h3>Ordnen</h3>';
+  html += z('nav" data-id="woche', '↺', 'Wochenrückblick', 'Deine letzten 7 Tage, mit Gemini-Auswertung');
+  html += z('nav" data-id="erinnerung', '◔', 'Erinnerungen', (ERI.morgen ? 'Morgens ' + ERI.morgenZeit : '') + (ERI.morgen && ERI.abend ? ' · ' : '') + (ERI.abend ? 'Abends ' + ERI.abendZeit : '') || 'Aus');
+  html += z('checkin" data-id="morgen', '☼', 'Check-in', 'Morgens und abends in 10 Sekunden');
+  html += z('nav" data-id="dank', '☀', 'Dankbarkeit', 'Jeden Tag ' + DANK_N + ' Dinge, die gut waren');
+  html += z('nav" data-id="werte', '✦', 'Werte', D.Werte.length + ' Werte');
+  html += z('nav" data-id="skills', '✚', 'Notfall-Skills', D.Skills.length + ' Skills');
+  html += z('nav" data-id="verlauf', '↗', 'Verlauf', 'Anspannung und Skill-Bewertungen');
+  html += z('nav" data-id="bereiche', '◐', 'Lebensbereiche', D.Bereiche.length + ' Bereiche');
+  html += z('nav" data-id="situationen', '◎', 'Situationen', D.Situationen.length + ' Situationen für „Was ist gerade los?“');
+  html += z('nav" data-id="erfahrungen', '✎', 'Meine Erfahrungen', D.Reflexionen.length + ' Einträge');
+  html += '<h3>Darstellung</h3><div class="segment" id="themeWahl">' +
+    '<button data-act="theme" data-id="nacht"' + (theme === 'nacht' ? ' class="an"' : '') + '>Nacht</button>' +
+    '<button data-act="theme" data-id="morgen"' + (theme === 'morgen' ? ' class="an"' : '') + '>Morgen</button></div>';
+  html += '<div class="feld" style="margin-top:18px"><label for="fName">Wie darf ich dich begrüßen?</label><input type="text" id="fName" maxlength="40" placeholder="Dein Name" value="' + esc(ls('lk_name') || '') + '"></div>';
+  html += '<h3>App</h3>';
+  html += z('startbildschirm', '⌂', 'Auf den Startbildschirm legen', 'So hast du den Kompass immer griffbereit');
+  if (D.sheetUrl) html += '<a class="zeile" href="' + esc(D.sheetUrl) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><span class="sym">▦</span><span class="txt">Daten-Sheet öffnen<small>Alle Regeln liegen sicher in deinem Google Drive</small></span>' + pfeil + '</a>';
+  html += z('neuLaden', '↻', 'Neu laden', 'Daten frisch aus dem Sheet holen');
+  return html;
+};
+NACH.mehr = function () {
+  var f = $('#fName');
+  f.addEventListener('change', function () { ls('lk_name', f.value.trim()); toast('Gespeichert'); });
+};
+
+VIEWS.bereiche = function (_, setTitel) {
+  setTitel('Lebensbereiche');
+  var html = '<p class="leise">Die großen Felder deines Lebens. Jede Regel kann einem Bereich zugeordnet werden.</p>';
+  html += D.Bereiche.slice().sort(nachReihe).map(function (b) {
+    var n = D.Regeln.filter(function (r) { return r.bereichId === b.id; }).length;
+    return '<button class="zeile" data-act="bereichEdit" data-id="' + esc(b.id) + '"><span class="sym" style="--c:' + esc(b.farbe) + '">' + ikon(b.symbol) + '</span>' +
+      '<span class="txt">' + esc(b.name) + '<small>' + n + (n === 1 ? ' Regel' : ' Regeln') + '</small></span>' + svg('stift').replace('<svg', '<svg class="pfeil"') + '</button>';
+  }).join('');
+  return html + '<div class="aktionen"><button class="btn primaer" data-act="bereichEdit">' + svg('plus') + 'Bereich hinzufügen</button></div>';
+};
+
+VIEWS.situationen = function (_, setTitel) {
+  setTitel('Situationen');
+  var html = '<p class="leise">Diese Situationen erscheinen bei „Was ist gerade los?“. Formuliere sie so, wie du sie innerlich erlebst.</p>';
+  html += D.Situationen.slice().sort(nachReihe).map(function (s) {
+    var n = D.Regeln.filter(function (r) { return ids(r.situationen).indexOf(s.id) > -1; }).length;
+    return '<button class="zeile" data-act="sitEdit" data-id="' + esc(s.id) + '"><span class="sym">' + ikon(s.symbol) + '</span>' +
+      '<span class="txt">' + esc(s.name) + '<small>' + n + (n === 1 ? ' Regel' : ' Regeln') + '</small></span>' + svg('stift').replace('<svg', '<svg class="pfeil"') + '</button>';
+  }).join('');
+  return html + '<div class="aktionen"><button class="btn primaer" data-act="sitEdit">' + svg('plus') + 'Situation hinzufügen</button></div>';
+};
+
+VIEWS.erfahrungen = function (_, setTitel) {
+  setTitel('Meine Erfahrungen');
+  var liste = D.Reflexionen.slice().sort(function (a, b) { return a.datum < b.datum ? 1 : -1; });
+  if (!liste.length) return leer('Noch keine Erfahrungen festgehalten.', 'Wenn du eine Regel angewendet hast, kannst du hier kurz notieren, wie es war. So lernt dein Kompass mit dir.', '');
+  var g = liste.filter(function (x) { return x.wirkung === 'geholfen'; }).length;
+  var html = '<p class="leise">' + liste.length + ' Einträge, davon ' + g + '-mal „hat geholfen“. Jeder Eintrag ist ein Schritt.</p>';
+  return html + '<div class="block" style="padding:4px 16px">' + liste.map(function (x) { return reflexHtml(x, true); }).join('') + '</div>';
+};
+
+/* =========================================================
+   Notfall-Coach (SOS)
+   ========================================================= */
+var SOS = { a: null, disk: false, filt: 'Alle' };
+var WORT = ['ruhig', 'ruhig', 'leicht angespannt', 'leicht angespannt', 'spürbar angespannt', 'deutlich angespannt', 'stark angespannt', 'sehr stark angespannt', 'kaum auszuhalten', 'am Limit', 'am Limit'];
+var ANSATZ_IKON = { Atmung: 'welle', Körper: 'hand', Gedanken: 'puzzle', Gefühle: 'herz', Soziales: 'sprechblase', Schlaf: 'mond', Essen: 'tasse' };
+function skill(id) { return D.Skills.find(function (s) { return s.id === id; }); }
+function skillZeile(s) {
+  var akut = s.einsatz === 'Akut';
+  return '<button class="karte skill' + (akut ? '' : ' reg') + '" data-act="skill" data-id="' + esc(s.id) + '"><span class="sym">' + ikon(ANSATZ_IKON[s.ansatz] || 'kreis') + '</span>' +
+    '<span class="txt">' + esc(s.titel) + '<small>' + esc(s.einsatz) + ' · ' + esc(s.dauer) + ' Min.' + (s.diskret === 'ja' ? ' · diskret' : '') + '</small></span>' +
+    (s.favorit === 'ja' ? '<span class="st">★</span>' : '') + '</button>';
+}
+function vorlagenHtml(r) {
+  var bl = String(r.vorlagen || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+  if (!bl.length) return '';
+  return '<h3>Formulierungen</h3>' + bl.map(function (b, i) {
+    var z = b.split('\n'), kopf = z.length > 1 ? z.shift() : 'Formulierung';
+    return '<div class="block vorlage"><div class="vk">' + esc(kopf) + '<button data-act="kopiere" data-id="' + esc(r.id) + '" data-i="' + i + '">Kopieren</button></div><p>' + esc(z.join('\n')) + '</p></div>';
+  }).join('');
+}
+function passend() {
+  return D.Skills.filter(function (s) { return SOS.a >= s.von && SOS.a <= s.bis && (!SOS.disk || s.diskret === 'ja'); })
+    .sort(function (x, y) { return (y.einsatz === 'Akut') - (x.einsatz === 'Akut') || (y.favorit === 'ja') - (x.favorit === 'ja'); });
+}
+function sosListe() {
+  var l = passend();
+  return '<h3>' + l.length + (l.length === 1 ? ' Skill passt' : ' Skills passen') + ' jetzt</h3>' + (l.length ? '<div class="liste">' + l.map(skillZeile).join('') + '</div>'
+    : leer('Gerade passt nichts genau.', 'Atme einmal lang aus und spür deine Fußsohlen.', ''));
+}
+VIEWS.sos = function () {
+  if (SOS.a == null) { var la = letzteAnsp(); SOS.a = la ? +la.vorher : 7; }
+  var html = '<h2>Du bist nicht allein damit.</h2><p class="leise">Wie stark ist die Anspannung gerade?</p>';
+  html += '<div class="block sosbox"><div class="zahl" id="sZahl">' + SOS.a + '<small>/10</small></div><div class="wort" id="sWort">' + WORT[SOS.a] + '</div>' +
+    '<input type="range" min="0" max="10" value="' + SOS.a + '" id="sRegler" aria-label="Anspannung von 0 bis 10"><div class="skala"><span>0 ruhig</span><span>10 am Limit</span></div>' +
+    '<div class="chips" style="margin-top:16px;justify-content:center"><button class="chip klein' + (SOS.disk ? ' an' : '') + '" data-act="sosDisk">Andere sind dabei: nur unauffällige</button>' +
+    '<button class="chip klein" data-act="sosNotiz">Nur Anspannung notieren</button></div></div>';
+  html += kiBox('kiSkillText', 'Notfall-Coach fragen', 'Schreib in eigenen Worten, was gerade los ist …', 'Passenden Skill finden', 'kiSkill');
+  return html + '<div id="sListe">' + sosListe() + '</div><p class="kihinweis">In akuter Gefahr: TelefonSeelsorge 0800 111 0 111 (kostenlos, rund um die Uhr) oder Notruf 112.</p>';
+};
+NACH.sos = function () {
+  var r = $('#sRegler');
+  r.addEventListener('input', function () {
+    SOS.a = +r.value;
+    $('#sZahl').innerHTML = SOS.a + '<small>/10</small>';
+    $('#sWort').textContent = WORT[SOS.a];
+    $('#sListe').innerHTML = sosListe();
+  });
+};
+VIEWS.skill = function (id, setTitel) {
+  var s = skill(id);
+  if (!s) return leer('Diesen Skill gibt es nicht mehr.', '', '');
+  setTitel(s.titel);
+  var html = '<div class="meta" style="--c:' + (s.einsatz === 'Akut' ? 'var(--sos)' : 'var(--accent)') + '"><span class="punkt"></span>' + esc(s.ansatz) + ' · ' + esc(s.einsatz) + (s.diskret === 'ja' ? ' · diskret möglich' : '') + '</div>';
+  html += '<h2>' + esc(s.titel) + '</h2>';
+  html += '<div class="fakten"><div class="block"><b>' + esc(s.dauer) + '</b>Minuten</div><div class="block"><b>' + s.von + '–' + s.bis + '</b>Anspannung</div><div class="block"><b>' + (s.favorit === 'ja' ? '★' : '–') + '</b>Favorit</div></div>';
+  html += '<h3>So geht es</h3><div class="block" style="padding:8px 12px">' + (s.schritte ? schritteHtml(s) : '<p class="leise" style="padding:10px 4px;margin:0">Für diesen Skill ist noch keine Anleitung hinterlegt.</p>') + '</div>';
+  if (s.material) html += '<p class="leise" style="margin-top:14px"><strong style="color:var(--ink)">Du brauchst:</strong> ' + esc(s.material) + '</p>';
+  if (s.hinweis) html += '<div class="vorsicht">' + esc(s.hinweis) + '</div>';
+  var rg = D.Regeln.filter(function (r) { return ids(r.skills).indexOf(s.id) > -1; });
+  if (rg.length) html += '<h3>Gehört zu deinen Regeln</h3><div class="liste">' + sortRegeln(rg).map(karte).join('') + '</div>';
+  html += '<div class="aktionen"><button class="btn sos" data-act="skillFertig" data-id="' + esc(s.id) + '">' + svg('haken') + 'Fertig, wie geht es mir jetzt?</button><button class="btn ghost" data-act="zurueck">Anderen Skill probieren</button></div>';
+  return html;
+};
+VIEWS.skills = function (_, setTitel) {
+  setTitel('Notfall-Skills');
+  var f = ['Alle', 'Akut', 'Regulation', 'Alltag'];
+  var l = D.Skills.filter(function (s) { return SOS.filt === 'Alle' || s.einsatz === SOS.filt; });
+  return '<p class="leise">' + D.Skills.length + ' Skills. Antippen zum Öffnen.</p><div class="chips" style="margin-bottom:16px">' +
+    f.map(function (x) { return '<button class="chip klein' + (SOS.filt === x ? ' an' : '') + '" data-act="skFilter" data-id="' + x + '">' + x + '</button>'; }).join('') +
+    '</div><div class="liste">' + l.map(skillZeile).join('') + '</div>';
+};
+VIEWS.verlauf = function (_, setTitel) {
+  setTitel('Verlauf');
+  var l = D.SkillLog.slice().sort(function (a, b) { return a.datum < b.datum ? 1 : -1; });
+  var html = '<p class="leise">Skill-Bewertungen und Anspannung an einem Ort. Erfahrungen zu Regeln findest du unter „Meine Erfahrungen“.</p>';
+  html += '<div class="block" style="padding:12px 16px;margin-bottom:16px">' + anspVerlaufHtml() + '</div>';
+  return html + (l.length ? '<div class="block" style="padding:4px 16px">' + l.map(function (x) {
+    var s = skill(x.skillId);
+    return '<div class="reflex"><span class="w geholfen">' + (x.nachher !== '' ? x.vorher + '→' + x.nachher : x.vorher) + '</span><div><div class="datum">' + esc(datum(x.datum)) + (x.sterne ? ' · ' + '★'.repeat(x.sterne) : '') + '</div>' +
+      '<div style="font-weight:700">' + esc(s ? s.titel : 'Anspannung notiert') + '</div>' + (x.notiz ? '<div>' + esc(x.notiz) + '</div>' : '') + '</div></div>';
+  }).join('') + '</div>' : leer('Noch nichts festgehalten.', '', ''));
+};
+function modalSkillFertig(id) {
+  var s = skill(id), nach = Math.max(0, SOS.a - 3), sterne = 0;
+  oeffneModal('<h2>Kurz nachspüren</h2><p class="leise">' + esc(s.titel) + ' · vorher ' + SOS.a + '/10</p>' +
+    '<div class="feld"><label for="mNach">Anspannung jetzt: <strong id="mNachZ">' + nach + '</strong>/10</label><input type="range" id="mNach" min="0" max="10" value="' + nach + '" style="width:100%;height:44px;accent-color:var(--accent)"></div>' +
+    '<div class="feld"><span class="label">Wie hilfreich war der Skill?</span><div class="sterne" id="mSterne">' + [1, 2, 3, 4, 5].map(function (i) { return '<button type="button" data-s="' + i + '" aria-label="' + i + ' Sterne">★</button>'; }).join('') + '</div></div>' +
+    '<div class="feld"><label for="mNotiz">Notiz</label><textarea id="mNotiz" rows="3" placeholder="Optional. Was war der Auslöser?"></textarea></div>' +
+    '<div class="aktionen"><button class="btn primaer" id="mSpeichern">' + svg('haken') + 'Festhalten</button><button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+      var r = $('#mNach', box);
+      r.oninput = function () { nach = +r.value; $('#mNachZ', box).textContent = nach; };
+      $$('#mSterne button', box).forEach(function (b) { b.onclick = function () { sterne = +b.dataset.s; $$('#mSterne button', box).forEach(function (x) { x.classList.toggle('an', +x.dataset.s <= sterne); }); }; });
+      $('#mSpeichern', box).onclick = function () {
+        sichere('SkillLog', { skillId: id, datum: new Date().toISOString(), vorher: SOS.a, nachher: nach, sterne: sterne, notiz: $('#mNotiz', box).value.trim() });
+        schliesseModal();
+        toast(nach < SOS.a ? 'Festgehalten. Die Anspannung ist gesunken.' : 'Festgehalten. Auch das ist wertvoll.');
+        stapel = []; RB.tab = 'zeit'; RB.filt = 'alle'; route = { view: 'rueckblick', param: null }; render();
+      };
+    });
+}
+
+/* =========================================================
+   KI-Helfer (über Gemini auf dem Apps-Script-Server)
+   ========================================================= */
+var KI_SICHER = 'Wichtig: Du ersetzt keine Therapie. Wenn die Person von Suizidgedanken, Selbstverletzung oder akuter Gefahr schreibt, nenne ruhig die TelefonSeelsorge 0800 111 0 111 (kostenlos, rund um die Uhr) und den Notruf 112 und ermutige, jetzt einen Menschen zu kontaktieren.';
+function holeKI() {
+  return Promise.resolve({
+    json: function (prompt) {
+      return rufe('ki', prompt).catch(function (e) {
+        var m = String(e && e.message || e);
+        throw { code: m.indexOf('rate_limited') > -1 ? 'rate_limited' : (m.indexOf('GEMINI_API_KEY') > -1 ? 'kein_schluessel' : 'fehler') };
+      });
+    }
+  });
+}
+function kiFehler(e) {
+  var c = e && e.code;
+  if (c === 'not_granted') return 'Die KI ist gerade nicht erreichbar.';
+  if (c === 'kein_schluessel') return 'Für die KI fehlt noch der Gemini-Schlüssel in den Skript-Eigenschaften.';
+  if (c === 'rate_limited') return 'Gerade zu viele Anfragen. Versuch es in einer Minute noch einmal.';
+  return 'Die KI hat gerade nicht geantwortet. Versuch es gleich noch einmal.';
+}
+function kiBox(id, titel, platzhalter, knopf, akt) {
+  return '<div class="block kibox"><div class="kikopf"><span class="kistern">✦</span>' + titel + '</div>' +
+    '<textarea id="' + id + '" rows="3" placeholder="' + esc(platzhalter) + '"></textarea>' +
+    '<button type="button" class="btn primaer" data-act="' + akt + '" id="' + id + 'Btn">' + knopf + '</button>' +
+    '<div class="kiaus" id="' + id + 'Aus" aria-live="polite"></div></div>';
+}
+function kiLaeuft(id, an) {
+  var b = $('#' + id + 'Btn'); if (!b) return;
+  b.disabled = an; b.classList.toggle('laeuft', an);
+  if (an) { b.dataset.t = b.textContent; b.textContent = 'Einen Moment …'; } else if (b.dataset.t) b.textContent = b.dataset.t;
+}
+
+/* ---- Skills: Was ist gerade los? ---- */
+var KI_NEU = null;
+function kiSkill() {
+  var t = $('#kiSkillText').value.trim(), aus = $('#kiSkillTextAus');
+  if (!t) { $('#kiSkillText').focus(); return; }
+  kiLaeuft('kiSkillText', true); aus.innerHTML = '';
+  holeKI().then(function (ki) {
+    if (!ki) throw { code: 'not_granted' };
+    var bib = D.Skills.map(function (s) { return s.id + ' | ' + s.titel + ' | ' + s.ansatz + ' | ' + s.einsatz + ' | Anspannung ' + s.von + '-' + s.bis + ' | diskret ' + (s.diskret || 'nein'); }).join('\n');
+    var prompt = 'Du bist ein ruhiger, warmer Notfall-Coach in einer deutschsprachigen Selbsthilfe-App (DBT, Somatic Experiencing, ACT). Sprich die Person mit du an, kurz und ohne Fachjargon.\n' + KI_SICHER +
+      '\n\nAnspannung gerade: ' + SOS.a + ' von 10.' + (SOS.disk ? ' Andere Menschen sind dabei, nur unauffällige Skills.' : '') +
+      '\nDie Person schreibt: """' + t + '"""\n\nSkill-Bibliothek (id | Titel | Ansatz | Einsatz | passende Anspannung | diskret):\n' + bib +
+      '\n\nAntworte nur mit JSON: {"antwort": "2-3 beruhigende, konkrete Sätze", "skills": ["bis zu 3 ids aus der Bibliothek, das Passendste zuerst"], "neu": null oder {"titel": "...", "ansatz": "Atmung|Körper|Gedanken|Gefühle|Soziales|Schlaf|Essen", "einsatz": "Akut|Regulation|Alltag", "dauer": "Minuten als Zahl", "schritte": ["kurze Schritte"], "hinweis": "Vorsicht-Hinweis oder leer"}}. Schlage "neu" nur vor, wenn kein Skill der Bibliothek gut passt.';
+    return ki.json(prompt, { modelTier: 'default' });
+  }).then(function (r) {
+    kiLaeuft('kiSkillText', false);
+    r = r || {};
+    var sk = (r.skills || []).map(skill).filter(Boolean);
+    KI_NEU = r.neu && r.neu.titel ? r.neu : null;
+    var h = r.antwort ? '<p class="kiantwort">' + esc(r.antwort) + '</p>' : '';
+    if (sk.length) h += '<div class="liste">' + sk.map(skillZeile).join('') + '</div>';
+    if (KI_NEU) h += '<div class="karte kineu"><div class="kopf">Neuer Skill · KI-Vorschlag</div><div class="titel">' + esc(KI_NEU.titel) + '</div>' +
+      '<ol>' + (KI_NEU.schritte || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' +
+      (KI_NEU.hinweis ? '<div class="vorsicht">' + esc(KI_NEU.hinweis) + '</div>' : '') +
+      '<div class="aktionen"><button class="btn" data-act="kiNeuSkill">' + svg('plus') + 'Als Vorschlag in meine Skills</button></div></div>';
+    aus.innerHTML = h || '<p class="leise">Keine Antwort erhalten.</p>';
+  }).catch(function (e) { kiLaeuft('kiSkillText', false); aus.innerHTML = '<p class="leise">' + esc(kiFehler(e)) + '</p>'; });
+}
+function kiNeuSkill() {
+  if (!KI_NEU) return;
+  var n = KI_NEU;
+  var s = sichere('Skills', { id: 'Skill_KI_' + Date.now().toString(36), titel: n.titel, ansatz: n.ansatz || 'Körper', einsatz: n.einsatz || 'Akut', dauer: String(n.dauer || '2'), von: 0, bis: 10, diskret: 'ja', status: 'KI-Vorschlag – prüfen', hinweis: n.hinweis || '', schritte: (n.schritte || []).join('\n') });
+  KI_NEU = null;
+  toast('Als KI-Vorschlag gespeichert. Prüf ihn in Ruhe.');
+  geh('skill', s.id);
+}
+
+/* ---- Regeln: Inspiration und Ausformulieren ---- */
+var KI_IDEEN = [];
+function kiRegel() {
+  var t = $('#kiRegelText').value.trim(), aus = $('#kiRegelTextAus');
+  if (!t) { $('#kiRegelText').focus(); return; }
+  var bisher = { titel: $('#fTitel').value.trim(), kernsatz: $('#fKern').value.trim(), schritte: $('#fSchritte').value.trim() };
+  var bName = ($('#fBereich').selectedOptions[0] || {}).textContent || '';
+  kiLaeuft('kiRegelText', true); aus.innerHTML = '';
+  holeKI().then(function (ki) {
+    if (!ki) throw { code: 'not_granted' };
+    var prompt = 'Du hilfst in der deutschsprachigen App „Lebenskompass“, persönliche Lebensregeln zu entwickeln und auszuformulieren. Eine Regel ist ein Satz, den man sich in ruhigen Momenten für schwere Momente gibt. Schreibe in der Ich-Form, warm, klar und konkret, ohne Fachjargon und ohne Floskeln.\n' + KI_SICHER +
+      '\n\nDie Person schreibt: """' + t + '"""' +
+      (bisher.titel || bisher.kernsatz || bisher.schritte ? '\nBisheriger Entwurf: ' + JSON.stringify(bisher) : '') +
+      (bName && bName !== 'Ohne Bereich' ? '\nGewählter Lebensbereich: ' + bName : '') +
+      '\nLebensbereiche: ' + D.Bereiche.map(function (b) { return b.name; }).join(', ') +
+      '\nSituationen: ' + D.Situationen.map(function (s) { return s.name; }).join(', ') +
+      '\nNotfall-Skills: ' + D.Skills.map(function (s) { return s.id + ' ' + s.titel; }).join('; ') +
+      '\nBeispiel einer guten Regel: Titel „Erst sicher, dann entscheiden“, Satz „Wenn ich aufgewühlt bin, entscheide ich nichts Wichtiges. Zuerst sorge ich für Sicherheit.“' +
+      '\n\nAntworte nur mit JSON: {"titel": "kurz, max. 6 Wörter", "kernsatz": "die Regel in 1-2 Sätzen", "warum": "2-3 Sätze, warum mir das wichtig ist", "schritte": ["3-5 Schritte, jeweils im Format Überschrift: Text"], "vorlagen": [{"titel": "z. B. E-Mail an den Chef", "text": "fertige Formulierung mit [Platzhaltern]"}], "bereich": "einer der Lebensbereiche", "situationen": ["passende Situationen aus der Liste"], "skills": ["bis zu 2 Skill-ids"], "ideen": ["2-3 alternative Kernsätze mit anderem Blickwinkel"]}. Vorlagen nur, wenn Sätze zum Sagen oder Schreiben wirklich helfen.';
+    return ki.json(prompt, { modelTier: 'default' });
+  }).then(function (r) {
+    kiLaeuft('kiRegelText', false);
+    r = r || {};
+    if (r.titel) $('#fTitel').value = r.titel;
+    if (r.kernsatz) $('#fKern').value = r.kernsatz;
+    if (r.warum) $('#fWarum').value = r.warum;
+    if (r.schritte && r.schritte.length) $('#fSchritte').value = r.schritte.join('\n');
+    if (r.vorlagen && r.vorlagen.length) $('#fVorlagen').value = r.vorlagen.map(function (v) { return (v.titel || 'Formulierung') + '\n' + (v.text || ''); }).join('\n\n');
+    var b = D.Bereiche.find(function (x) { return x.name === r.bereich; });
+    if (b) $('#fBereich').value = b.id;
+    var sn = r.situationen || [];
+    $$('#fSits .chip[data-id]').forEach(function (c) { var s = situation(c.dataset.id); if (s && sn.indexOf(s.name) > -1) c.classList.add('an'); });
+    var sk = r.skills || [];
+    $$('#fSkills .chip').forEach(function (c) { if (sk.indexOf(c.dataset.id) > -1) c.classList.add('an'); });
+    KI_IDEEN = r.ideen || [];
+    aus.innerHTML = '<p class="kiantwort">Ich habe das Formular unten ausgefüllt. Ändere alles, was nicht nach dir klingt.</p>' +
+      (KI_IDEEN.length ? '<div class="kikopf" style="margin-top:12px">Andere Blickwinkel, zum Übernehmen antippen</div><div class="liste">' + KI_IDEEN.map(function (x, i) { return '<button type="button" class="karte kiidee" data-act="kiIdee" data-i="' + i + '"><div class="kern">' + esc(x) + '</div></button>'; }).join('') + '</div>' : '');
+    var f = $('#fTitel'); if (f) f.closest('.feld').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }).catch(function (e) { kiLaeuft('kiRegelText', false); aus.innerHTML = '<p class="leise">' + esc(kiFehler(e)) + '</p>'; });
+}
+
+/* =========================================================
+   Dankbarkeit (Tagebuch)
+   ========================================================= */
+var DANK_N = ls('lk_dank_anzahl') || 3;
+var DANK_ANSTOSS = ['Ein Moment, der gut tat', 'Ein Mensch, der freundlich war', 'Etwas an mir, das ich heute mochte', 'Etwas, das leichter war als gedacht', 'Etwas Schönes, das ich gesehen habe', 'Etwas, das mein Körper heute geschafft hat', 'Eine kleine Freude', 'Etwas, worauf ich mich freue', 'Ein Geräusch, ein Duft, ein Geschmack', 'Etwas, das ich gelernt habe'];
+function tagIso(d) { function p(n) { return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function heute() { return tagIso(new Date()); }
+function dankAm(tag) { return D.Dankbarkeit.filter(function (x) { return x.datum === tag && x.text; }).sort(function (a, b) { return a.nr - b.nr; }); }
+function dankSerie() {
+  var d = new Date(), n = 0;
+  if (!dankAm(tagIso(d)).length) d.setDate(d.getDate() - 1);
+  while (dankAm(tagIso(d)).length) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function dankKarte() {
+  var n = dankAm(heute()).length, fertig = n >= DANK_N, s = dankSerie();
+  var punkte = '';
+  for (var i = 0; i < DANK_N; i++) punkte += '<i class="' + (i < n ? 'an' : '') + '"></i>';
+  return '<button class="block dankkarte" data-act="nav" data-id="dank"><span class="sym" style="--c:#C9A45C">' + ikon('sonne') + '</span>' +
+    '<span class="txt"><strong>' + (fertig ? 'Heute dankbar für ' + n + ' Dinge' : 'Wofür bist du heute dankbar?') + '</strong>' +
+    '<small>' + (fertig ? 'Schön.' + (s > 1 ? ' ' + s + ' Tage in Folge.' : '') : n + ' von ' + DANK_N + ' notiert' + (s > 1 ? ' · ' + s + ' Tage in Folge' : '')) + '</small></span>' +
+    '<span class="punkte">' + punkte + '</span></button>';
+}
+VIEWS.dank = function (_, setTitel) {
+  setTitel('Dankbarkeit');
+  var tag = heute(), serie = dankSerie();
+  var html = '<h2>Wofür bist du heute dankbar?</h2><p class="leise">' + esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) +
+    (serie > 1 ? ' · ' + serie + ' Tage in Folge' : '') + '</p>';
+  html += '<div class="block dankliste">';
+  for (var i = 1; i <= DANK_N; i++) {
+    var e = D.Dankbarkeit.find(function (x) { return x.datum === tag && +x.nr === i; });
+    var a = DANK_ANSTOSS[(i - 1 + new Date().getDate()) % DANK_ANSTOSS.length];
+    html += '<label class="dankzeile"><span class="nr' + (e && e.text ? ' an' : '') + '">' + i + '</span><textarea rows="1" data-dank="' + i + '" placeholder="' + esc(a) + ' …">' + esc(e ? e.text : '') + '</textarea></label>';
+  }
+  html += '</div>';
+  html += '<div class="dankanzahl"><span>Jeden Tag</span><button class="icon-btn" data-act="dankAnzahl" data-d="-1" aria-label="Weniger">−</button><b>' + DANK_N + '</b><button class="icon-btn" data-act="dankAnzahl" data-d="1" aria-label="Mehr">+</button><span>Dinge</span></div>';
+  var tage = {};
+  D.Dankbarkeit.forEach(function (x) { if (x.text && x.datum !== tag) (tage[x.datum] = tage[x.datum] || []).push(x); });
+  var liste = Object.keys(tage).sort().reverse();
+  html += '<h3>Dein Tagebuch</h3>';
+  html += liste.length ? liste.map(function (t) {
+    return '<div class="block danktag"><div class="datum">' + esc(new Date(t + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) + '</div><ul>' +
+      tage[t].sort(function (a, b) { return a.nr - b.nr; }).map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
+  }).join('') : leer('Hier sammeln sich deine guten Momente.', 'Jeder Tag, an dem du etwas aufschreibst, kommt hierher.', '');
+  return html;
+};
+NACH.dank = function () {
+  $$('[data-dank]').forEach(function (f) {
+    var groesse = function () { f.style.height = 'auto'; f.style.height = f.scrollHeight + 'px'; };
+    groesse();
+    f.addEventListener('input', groesse);
+    f.addEventListener('change', function () {
+      var nr = +f.dataset.dank, tag = heute(), id = 'd-' + tag + '-' + nr, t = f.value.trim();
+      if (t) sichere('Dankbarkeit', { id: id, datum: tag, nr: nr, text: t });
+      else if (D.Dankbarkeit.some(function (x) { return x.id === id; })) entferne('Dankbarkeit', id);
+      f.closest('.dankzeile').querySelector('.nr').classList.toggle('an', !!t);
+      if (t && dankAm(tag).length === DANK_N) toast('Alle ' + DANK_N + ' notiert. Schön, dass du dir die Zeit nimmst.');
+    });
+  });
+};
+
+/* =========================================================
+   Anspannungs-Kompass (Startseite)
+   ========================================================= */
+var ANSP_FARBE = ['#7E9C86', '#7E9C86', '#8FA383', '#A3A67C', '#B9A46E', '#C9A45C', '#D39A62', '#DB9068', '#E08A70', '#E07E68', '#DE7060'];
+function anspLog() { return D.SkillLog.filter(function (x) { return x.vorher !== '' && x.vorher != null; }).sort(function (a, b) { return a.datum < b.datum ? -1 : 1; }); }
+function letzteAnsp() { var l = anspLog(); return l.length ? l[l.length - 1] : null; }
+var TRACK = { v: null, notiz: '' };
+function anspWinkel(v) { return -135 + v * 27; }
+function roseAnspannung(v) {
+  var P = function (r, grad) { var a = grad * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
+  var t = '';
+  for (var i = 0; i <= 50; i++) {
+    var g = -135 + i * 5.4, haupt = i % 5 === 0;
+    t += '<path class="' + (haupt ? 'tick-h' : 'tick') + '" d="M' + P(88, g) + 'L' + P(88 - (haupt ? 7 : 3), g) + '"/>';
+  }
+  var zahlen = '';
+  for (var z = 0; z <= 10; z++) { var xy = P(73, anspWinkel(z)).split(' '); zahlen += '<text class="grad' + (z === v ? ' an' : '') + '" x="' + xy[0] + '" y="' + xy[1] + '" dy="3">' + z + '</text>'; }
+  var bogen = function (von, bis, r) {
+    var gross = (bis - von) > 180 ? 1 : 0;
+    return 'M' + P(r, von) + 'A' + r + ' ' + r + ' 0 ' + gross + ' 1 ' + P(r, bis);
+  };
+  var spitze = function (g, L, w, cls) {
+    return '<path class="' + cls + '-l" d="M100 100L' + P(L, g) + 'L' + P(w, g - 45) + 'Z"/>' +
+           '<path class="' + cls + '-d" d="M100 100L' + P(L, g) + 'L' + P(w, g + 45) + 'Z"/>';
+  };
+  var stern = '';
+  [45, 135, 225, 315].forEach(function (g) { stern += spitze(g, 34, 8, 'neben'); });
+  [90, 180, 270].forEach(function (g) { stern += spitze(g, 46, 10, 'haupt'); });
+  stern += spitze(0, 62, 10, 'nord');
+  return '<svg class="rose ansp" viewBox="0 0 200 200" role="img" aria-label="Anspannung ' + v + ' von 10"><defs>' +
+    '<linearGradient id="messing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E2B3"/><stop offset=".45" stop-color="#C9A45C"/><stop offset="1" stop-color="#7A5A24"/></linearGradient>' +
+    '<linearGradient id="messingD" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B89049"/><stop offset="1" stop-color="#5E4318"/></linearGradient>' +
+    '<linearGradient id="anspVerlauf" x1="0" y1="1" x2="1" y2="1"><stop offset="0" stop-color="#7E9C86"/><stop offset=".5" stop-color="#C9A45C"/><stop offset="1" stop-color="#E08A70"/></linearGradient>' +
+    '<radialGradient id="glanz" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="var(--glow)"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>' +
+    '</defs>' +
+    '<circle cx="100" cy="100" r="99" fill="url(#glanz)" stroke="none"/>' +
+    '<circle class="bezel" cx="100" cy="100" r="96"/><circle class="bezel-2" cx="100" cy="100" r="92"/>' +
+    '<path class="skala-bg" d="' + bogen(-135, 135, 82) + '"/>' +
+    '<path class="skala-an" id="anspBogen" d="' + bogen(-135, Math.max(-134.5, anspWinkel(v)), 82) + '" stroke="' + ANSP_FARBE[v] + '"/>' +
+    t + zahlen + '<circle class="ring-i" cx="100" cy="100" r="56"/>' +
+    '<g class="zeiger" id="anspZeiger" style="transform:rotate(' + anspWinkel(v) + 'deg)"><g class="stern">' + stern + '</g></g>' +
+    '<circle class="mitte" cx="100" cy="100" r="5.5"/><circle class="mitte-p" cx="100" cy="100" r="1.8"/></svg>';
+}
+function anspVerlaufHtml() {
+  var l = anspLog().slice(-7);
+  if (!l.length) return '';
+  return '<div class="anspbalken" aria-label="Letzte Einträge">' + l.map(function (x) {
+    var d = new Date(x.datum), h = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    var tag = tagIso(d) === heute() ? h : d.toLocaleDateString('de-DE', { weekday: 'short' });
+    return '<div class="sp"><b style="height:' + Math.max(6, x.vorher * 10) + '%;background:' + ANSP_FARBE[x.vorher] + '"></b><i>' + x.vorher + '</i><small>' + esc(tag) + '</small></div>';
+  }).join('') + '</div>';
+}
+function anspSetze(v) {
+  TRACK.v = v;
+  var z = $('#anspZeiger'); if (z) z.style.transform = 'rotate(' + anspWinkel(v) + 'deg)';
+  var b = $('#anspBogen');
+  if (b) {
+    var r = 82, P = function (g) { var a = g * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
+    var bis = Math.max(-134.5, anspWinkel(v));
+    b.setAttribute('d', 'M' + P(-135) + 'A82 82 0 ' + ((bis + 135) > 180 ? 1 : 0) + ' 1 ' + P(bis));
+    b.setAttribute('stroke', ANSP_FARBE[v]);
+  }
+  $$('.rose.ansp .grad').forEach(function (t) { t.classList.toggle('an', +t.textContent === v); });
+  var w = $('#anspWert'); if (w) { w.textContent = v; w.style.color = ANSP_FARBE[v]; }
+  var wo = $('#anspWort'); if (wo) wo.textContent = WORT[v];
+}
+function anspKopf() {
+  var l = letzteAnsp();
+  if (TRACK.v == null) TRACK.v = l ? +l.vorher : 4;
+  var v = TRACK.v;
+  var seit = l ? 'Zuletzt eingetragen ' + (tagIso(new Date(l.datum)) === heute() ? 'heute um ' + new Date(l.datum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : 'am ' + datum(l.datum)) + ': ' + l.vorher + '/10' : 'Noch nichts eingetragen';
+  var html = '<div class="hero">' + roseAnspannung(v) + '<div class="anspmitte"><span id="anspWert" style="color:' + ANSP_FARBE[v] + '">' + v + '</span><small id="anspWort">' + WORT[v] + '</small></div></div>';
+  html += '<div class="block ansptrack"><label for="anspRegler" class="frage">Wie angespannt bist du gerade?</label>' +
+    '<input type="range" id="anspRegler" min="0" max="10" value="' + v + '" aria-label="Anspannung von 0 bis 10">' +
+    '<div class="skala"><span>0 ruhig</span><span>10 am Limit</span></div>' +
+    (TRACK.notizAuf ? '<input type="text" id="anspNotiz" maxlength="200" placeholder="Kurze Notiz (z. B. nach Meeting)" value="' + esc(TRACK.notiz) + '">' : '<div style="height:12px"></div>') +
+    '<button class="btn primaer" data-act="anspEintragen">' + svg('haken') + 'Eintragen</button>' +
+    (TRACK.notizAuf ? '' : '<button class="notizlink" data-act="anspNotizAuf">Notiz hinzufügen</button>') +
+    '<p class="leise klein" style="margin:6px 0 0;text-align:center">' + esc(seit) + '</p></div>';
+  if (l && l.vorher >= 7 && tagIso(new Date(l.datum)) === heute()) html += '<button class="btn-akut" data-act="anspSOS" style="margin-top:12px">Das ist viel gerade. Magst du einen Skill probieren?</button>';
+  return html;
+}
+
+/* =========================================================
+   Morgen- und Abend-Check-in
+   ========================================================= */
+var CHECK = {
+  morgen: { titel: 'Morgen-Check-in', frage: 'Wie startest du in den Tag?', felder: [
+    { k: 'schlaf', l: 'Wie hast du geschlafen?', w: ['sehr schlecht', 'schlecht', 'okay', 'gut', 'sehr gut'] },
+    { k: 'energie', l: 'Wie viel Energie hast du?', w: ['leer', 'wenig', 'mittel', 'gut', 'voll'] },
+    { k: 'stimmung', l: 'Wie ist deine Stimmung?', w: ['sehr gedrückt', 'gedrückt', 'neutral', 'gut', 'sehr gut'] }
+  ], text: 'Was ist heute wichtig für dich?', platz: 'z. B. Mittags rausgehen, um 18 Uhr Feierabend' },
+  abend: { titel: 'Abend-Check-in', frage: 'Wie war dein Tag?', felder: [
+    { k: 'stimmung', l: 'Wie ist deine Stimmung jetzt?', w: ['sehr gedrückt', 'gedrückt', 'neutral', 'gut', 'sehr gut'] },
+    { k: 'energie', l: 'Wie viel Energie ist noch da?', w: ['leer', 'wenig', 'mittel', 'gut', 'voll'] },
+    { k: 'tag', l: 'Wie war der Tag insgesamt?', w: ['sehr schwer', 'schwer', 'gemischt', 'gut', 'sehr gut'] }
+  ], text: 'Der Tag in einem Satz', platz: 'Optional' }
+};
+function checkinHeute(art) { return D.CheckIns.find(function (c) { return c.datum === heute() && c.art === art; }); }
+function checkinKarte() {
+  var h = new Date().getHours(), art = h < 14 ? 'morgen' : 'abend', c = checkinHeute(art), k = CHECK[art];
+  if (c) {
+    return '<button class="block dankkarte" data-act="checkin" data-id="' + art + '"><span class="sym" style="--c:#8A8FB8">' + ikon(art === 'morgen' ? 'sonne' : 'mond') + '</span>' +
+      '<span class="txt"><strong>' + k.titel + ' erledigt</strong><small>' + (c.notiz ? esc(c.notiz) : 'Antippen zum Ändern') + '</small></span><span class="st" style="color:var(--accent)">✓</span></button>';
+  }
+  return '<button class="block dankkarte ci-offen" data-act="checkin" data-id="' + art + '"><span class="sym" style="--c:#8A8FB8">' + ikon(art === 'morgen' ? 'sonne' : 'mond') + '</span>' +
+    '<span class="txt"><strong>' + k.titel + '</strong><small>' + k.frage + ' · 10 Sekunden</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+}
+var CI_WAHL = {};
+VIEWS.checkin = function (art, setTitel) {
+  art = art === 'abend' ? 'abend' : 'morgen';
+  var k = CHECK[art], c = checkinHeute(art) || {};
+  setTitel(k.titel);
+  CI_WAHL = { art: art };
+  k.felder.forEach(function (f) { CI_WAHL[f.k] = c[f.k] ? +c[f.k] : 0; });
+  var html = '<h2>' + k.frage + '</h2><div class="segment ci-art"><button data-act="checkinArt" data-id="morgen"' + (art === 'morgen' ? ' class="an"' : '') + '>Morgen</button><button data-act="checkinArt" data-id="abend"' + (art === 'abend' ? ' class="an"' : '') + '>Abend</button></div>';
+  html += k.felder.map(function (f) {
+    return '<div class="feld ci-feld"><span class="label">' + f.l + '</span><div class="ci-skala" data-k="' + f.k + '">' +
+      [1, 2, 3, 4, 5].map(function (i) { return '<button type="button" data-act="ciWahl" data-k="' + f.k + '" data-v="' + i + '" class="' + (CI_WAHL[f.k] === i ? 'an' : '') + '" aria-label="' + f.w[i - 1] + '"><i style="--s:' + i + '"></i></button>'; }).join('') +
+      '</div><div class="ci-wort" id="ciw-' + f.k + '">' + (CI_WAHL[f.k] ? f.w[CI_WAHL[f.k] - 1] : '&nbsp;') + '</div></div>';
+  }).join('');
+  html += '<div class="feld"><label for="ciText">' + k.text + '</label><input type="text" id="ciText" maxlength="200" placeholder="' + esc(k.platz) + '" value="' + esc(c.notiz || '') + '"></div>';
+  if (art === 'abend') html += '<button class="block dankkarte" data-act="nav" data-id="dank" style="margin-top:4px"><span class="sym" style="--c:#C9A45C">' + ikon('sonne') + '</span><span class="txt"><strong>Noch schnell zur Dankbarkeit?</strong><small>' + dankAm(heute()).length + ' von ' + DANK_N + ' notiert</small></span></button>';
+  html += '<div class="aktionen"><button class="btn primaer" data-act="ciSpeichern">' + svg('haken') + 'Fertig</button><button class="btn ghost" data-act="zurueck">Später</button></div>';
+  return html;
+};
+
+/* =========================================================
+   Wochenrückblick
+   ========================================================= */
+function letzteTage(n) { var a = []; for (var i = n - 1; i >= 0; i--) { var d = new Date(); d.setDate(d.getDate() - i); a.push(tagIso(d)); } return a; }
+function mittel(a) { return a.length ? Math.round(a.reduce(function (x, y) { return x + y; }, 0) / a.length * 10) / 10 : null; }
+function wochenDaten() {
+  var tage = letzteTage(7), set = {};
+  tage.forEach(function (t) { set[t] = 1; });
+  var ansp = anspLog().filter(function (x) { return set[tagIso(new Date(x.datum))]; });
+  var proTag = tage.map(function (t) {
+    var w = ansp.filter(function (x) { return tagIso(new Date(x.datum)) === t; }).map(function (x) { return +x.vorher; });
+    return { tag: t, mittel: mittel(w), max: w.length ? Math.max.apply(null, w) : null, n: w.length };
+  });
+  var skills = {};
+  D.SkillLog.filter(function (x) { return x.skillId && set[tagIso(new Date(x.datum))]; }).forEach(function (x) {
+    var s = skills[x.skillId] = skills[x.skillId] || { n: 0, drop: [], sterne: [] };
+    s.n++; if (x.nachher !== '' && x.nachher != null) s.drop.push(x.vorher - x.nachher); if (x.sterne) s.sterne.push(+x.sterne);
+  });
+  var ci = D.CheckIns.filter(function (c) { return set[c.datum]; });
+  var dank = D.Dankbarkeit.filter(function (x) { return x.text && set[x.datum]; });
+  var refl = D.Reflexionen.filter(function (x) { return set[tagIso(new Date(x.datum))]; });
+  return {
+    tage: proTag, alle: ansp.map(function (x) { return +x.vorher; }),
+    schlaf: mittel(ci.filter(function (c) { return c.schlaf; }).map(function (c) { return +c.schlaf; })),
+    stimmung: mittel(ci.filter(function (c) { return c.stimmung; }).map(function (c) { return +c.stimmung; })),
+    energie: mittel(ci.filter(function (c) { return c.energie; }).map(function (c) { return +c.energie; })),
+    checkins: ci, skills: skills, dank: dank, refl: refl
+  };
+}
+var WOCHE_KI = null;
+function wocheKarte() {
+  var tag = new Date().getDay();
+  if (tag !== 0 && tag !== 1) return '';
+  return '<button class="block dankkarte" data-act="nav" data-id="woche"><span class="sym" style="--c:#6F94AE">' + ikon('weg') + '</span><span class="txt"><strong>Dein Wochenrückblick ist da</strong><small>Wie war deine Woche? Mit Gemini-Auswertung</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+}
+VIEWS.woche = function (_, setTitel) {
+  setTitel('Wochenrückblick');
+  var w = wochenDaten(), max = w.alle.length ? Math.max.apply(null, w.alle) : null;
+  var von = new Date(w.tage[0].tag + 'T12:00:00'), bis = new Date();
+  var html = '<h2>Deine Woche</h2><p class="leise">' + esc(von.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' }) + ' bis ' + bis.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })) + '</p>';
+  html += '<div class="fakten"><div class="block"><b>' + (mittel(w.alle) != null ? String(mittel(w.alle)).replace('.', ',') : '–') + '</b>Anspannung im Schnitt</div><div class="block"><b>' + (max != null ? max : '–') + '</b>Höchster Wert</div><div class="block"><b>' + w.dank.length + '</b>Dankbare Momente</div></div>';
+  html += '<h3>Anspannung pro Tag</h3><div class="block" style="padding:14px 16px"><div class="anspbalken" style="border:0;margin:0;height:120px">' + w.tage.map(function (t) {
+    var d = new Date(t.tag + 'T12:00:00');
+    return '<div class="sp">' + (t.mittel != null ? '<b style="height:' + Math.max(6, t.mittel * 10) + '%;background:' + ANSP_FARBE[Math.round(t.mittel)] + '"></b><i>' + String(t.mittel).replace('.', ',') + '</i>' : '<b style="height:3%;background:var(--line-2)"></b><i>–</i>') + '<small>' + esc(d.toLocaleDateString('de-DE', { weekday: 'short' })) + '</small></div>';
+  }).join('') + '</div></div>';
+  var z = function (l, v) { return '<div class="ci-zeile"><span>' + l + '</span><span class="ci-punkte">' + [1, 2, 3, 4, 5].map(function (i) { return '<i class="' + (v != null && i <= Math.round(v) ? 'an' : '') + '"></i>'; }).join('') + '</span><b>' + (v != null ? String(v).replace('.', ',') : '–') + '</b></div>'; };
+  html += '<h3>Check-ins · ' + w.checkins.length + '</h3><div class="block" style="padding:8px 18px">' + z('Schlaf', w.schlaf) + z('Stimmung', w.stimmung) + z('Energie', w.energie) + '</div>';
+  var sk = Object.keys(w.skills);
+  html += '<h3>Was geholfen hat</h3>' + (sk.length ? '<div class="liste">' + sk.map(function (id) {
+    var s = skill(id), x = w.skills[id], dr = mittel(x.drop);
+    return s ? '<button class="karte skill" data-act="skill" data-id="' + esc(id) + '"><span class="sym">' + ikon(ANSATZ_IKON[s.ansatz] || 'kreis') + '</span><span class="txt">' + esc(s.titel) + '<small>' + x.n + '-mal genutzt' + (dr != null ? ' · Anspannung im Schnitt −' + String(dr).replace('.', ',') : '') + '</small></span></button>' : '';
+  }).join('') + '</div>' : '<p class="leise">Diese Woche keine Skills eingetragen.</p>');
+  if (w.dank.length) {
+    var tipps = w.dank.slice().sort(function () { return 0.5 - Math.random(); }).slice(0, 3);
+    html += '<h3>Gute Momente</h3><div class="block danktag"><ul>' + tipps.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
+  }
+  html += kiBox('kiWoche', 'Rückblick mit Gemini', 'Optional: Was möchtest du über deine Woche wissen? z. B. „Wann war es am schwersten?“', 'Woche auswerten', 'kiWoche');
+  return html;
+};
+function kiWoche() {
+  var aus = $('#kiWocheAus'), frage = $('#kiWoche').value.trim();
+  kiLaeuft('kiWoche', true); aus.innerHTML = '';
+  holeKI().then(function (ki) {
+    if (!ki) throw { code: 'not_granted' };
+    var w = wochenDaten();
+    var daten = {
+      anspannung: anspLog().filter(function (x) { return w.tage.some(function (t) { return t.tag === tagIso(new Date(x.datum)); }); }).map(function (x) { var d = new Date(x.datum); return { zeit: d.toLocaleString('de-DE', { weekday: 'long', hour: '2-digit', minute: '2-digit' }), wert: x.vorher, nachher: x.nachher, skill: x.skillId ? (skill(x.skillId) || {}).titel : '', notiz: x.notiz }; }),
+      checkins: w.checkins.map(function (c) { return { tag: new Date(c.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long' }), art: c.art, schlaf: c.schlaf, energie: c.energie, stimmung: c.stimmung, tag_gesamt: c.tag, notiz: c.notiz }; }),
+      dankbarkeit: w.dank.map(function (x) { return x.text; }),
+      regeln_reflexionen: w.refl.map(function (x) { var r = regel(x.regelId); return { regel: r ? r.titel : '', wirkung: x.wirkung, notiz: x.notiz }; })
+    };
+    var prompt = 'Du schreibst einen persönlichen Wochenrückblick in einer deutschsprachigen Selbsthilfe-App. Sprich die Person mit du an, warm, ehrlich und konkret, ohne zu bewerten und ohne Fachjargon. Skalen: Anspannung 0-10 (10 = am Limit), Check-ins 1-5 (5 = sehr gut). Erfinde nichts, beziehe dich nur auf die Daten. Stelle keine Diagnosen.\n' + KI_SICHER +
+      (frage ? '\nDie Person fragt besonders: """' + frage + '"""' : '') + '\n\nDaten der letzten 7 Tage:\n' + JSON.stringify(daten) +
+      '\n\nAntworte nur mit JSON: {"zusammenfassung": "3-4 Sätze", "muster": ["2-3 beobachtete Muster, jeweils mit Beleg aus den Daten"], "geholfen": ["was nachweislich geholfen hat"], "naechste_woche": "ein kleiner, konkreter Vorschlag", "frage": "eine offene Frage zum Nachdenken"}';
+    return ki.json(prompt, { modelTier: 'default' });
+  }).then(function (r) {
+    kiLaeuft('kiWoche', false); r = r || {};
+    var li = function (a) { return (a || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join(''); };
+    aus.innerHTML = (r.zusammenfassung ? '<p class="kiantwort">' + esc(r.zusammenfassung) + '</p>' : '') +
+      (r.muster && r.muster.length ? '<div class="kikopf">Muster</div><ul class="kiliste">' + li(r.muster) + '</ul>' : '') +
+      (r.geholfen && r.geholfen.length ? '<div class="kikopf">Was geholfen hat</div><ul class="kiliste">' + li(r.geholfen) + '</ul>' : '') +
+      (r.naechste_woche ? '<div class="kikopf">Für nächste Woche</div><p>' + esc(r.naechste_woche) + '</p>' : '') +
+      (r.frage ? '<div class="anker" style="margin-top:14px;cursor:default"><div class="label">Zum Nachdenken</div><blockquote>' + esc(r.frage) + '</blockquote></div>' : '');
+  }).catch(function (e) { kiLaeuft('kiWoche', false); aus.innerHTML = '<p class="leise">' + esc(kiFehler(e)) + '</p>'; });
+}
+
+/* =========================================================
+   Erinnerungen
+   ========================================================= */
+var ERI = ls('lk_erinnerung') || { morgen: true, morgenZeit: '07:30', abend: true, abendZeit: '21:00', woche: true, wocheZeit: '18:00', ansp: false };
+function eriSichern() { ls('lk_erinnerung', ERI); rufe('speichereErinnerung', ERI).catch(function () { toast('Erinnerung konnte gerade nicht gespeichert werden.'); }); }
+VIEWS.erinnerung = function (_, setTitel) {
+  setTitel('Erinnerungen');
+  var z = function (k, titel, sub, zeitK) {
+    return '<div class="eri-zeile"><div class="txt"><strong>' + titel + '</strong><small>' + sub + '</small></div>' +
+      (zeitK ? '<input type="time" data-eri-zeit="' + zeitK + '" value="' + esc(ERI[zeitK]) + '"' + (ERI[k] ? '' : ' disabled') + '>' : '') +
+      '<button class="schalter' + (ERI[k] ? ' an' : '') + '" data-act="eriSchalter" data-id="' + k + '" role="switch" aria-checked="' + !!ERI[k] + '" aria-label="' + esc(titel) + '"><i></i></button></div>';
+  };
+  var html = '<h2>Erinnerungen</h2><p class="leise">Die App schickt dir eine kurze E-Mail mit einem Link, der direkt an die richtige Stelle führt.</p>';
+  html += '<div class="block" style="padding:4px 18px">' +
+    z('morgen', 'Morgen-Check-in', 'Täglich', 'morgenZeit') +
+    z('abend', 'Abend-Check-in und Dankbarkeit', 'Täglich', 'abendZeit') +
+    z('woche', 'Wochenrückblick', 'Sonntags', 'wocheZeit') +
+    z('ansp', 'Anspannung zwischendurch', 'Um 11, 15 und 18 Uhr', '') + '</div>';
+  html += '<h3>So sieht die Mail aus</h3><div class="block mailvorschau"><div class="mv-kopf"><b>Lebenskompass</b><span>' + esc(ERI.abendZeit) + '</span></div>' +
+    '<div class="mv-betreff">Wie war dein Tag?</div><p>Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, und wofür bist du heute dankbar?</p>' +
+    '<div class="mv-knoepfe"><span>Abend-Check-in</span><span>Dankbarkeit</span><span>Anspannung eintragen</span></div></div>';
+  html += '<p class="leise klein">Die Mails gehen an dein Google-Konto. Push-Nachrichten wie bei einer installierten App sind mit Apps Script leider nicht möglich.</p>';
+  html += '<div class="aktionen"><button class="btn" data-act="eriTest">' + svg('notiz') + 'Test-Mail schicken</button></div>';
+  return html;
+};
+NACH.erinnerung = function () {
+  $$('[data-eri-zeit]').forEach(function (f) { f.addEventListener('change', function () { ERI[f.dataset.eriZeit] = f.value; eriSichern(); toast('Gespeichert'); }); });
+};
+
+/* =========================================================
+   Umbau: SOS als ein Ablauf, Rückblick, Einstellungen
+   ========================================================= */
+SOS.sits = []; SOS.seite = 0;
+function sosVorschlaege() {
+  var basis = passend();
+  if (!SOS.sits.length) return basis;
+  var rg = D.Regeln.filter(function (r) { return ids(r.situationen).some(function (i) { return SOS.sits.indexOf(i) > -1; }); });
+  var bevorzugt = [];
+  rg.forEach(function (r) { ids(r.skills).forEach(function (id) { if (bevorzugt.indexOf(id) === -1) bevorzugt.push(id); }); });
+  return basis.slice().sort(function (a, b) {
+    var x = bevorzugt.indexOf(a.id), y = bevorzugt.indexOf(b.id);
+    return (x === -1 ? 99 : x) - (y === -1 ? 99 : y);
+  });
+}
+function sosRegel() {
+  if (!SOS.sits.length) return null;
+  var rg = sortRegeln(D.Regeln.filter(function (r) { return r.status !== 'entwurf' && ids(r.situationen).some(function (i) { return SOS.sits.indexOf(i) > -1; }); }));
+  return rg[0] || null;
+}
+function sosErgebnis() {
+  var l = sosVorschlaege(), seiten = Math.max(1, Math.ceil(l.length / 3));
+  if (SOS.seite >= seiten) SOS.seite = 0;
+  var drei = l.slice(SOS.seite * 3, SOS.seite * 3 + 3);
+  var html = '';
+  var r = sosRegel();
+  if (r) html += '<div class="krise-regel" style="--c:' + esc(farbe(r)) + '" data-act="regel" data-id="' + esc(r.id) + '" role="button"><div class="label">Deine Regel dafür</div><blockquote>' + esc(r.kernsatz) + '</blockquote></div>';
+  html += '<h3>Probier jetzt</h3>';
+  if (!drei.length) return html + '<div class="block krise-leer">Atme einmal lang aus. Spür deine Füße auf dem Boden. Das reicht für den Moment.</div>';
+  html += drei.map(function (s) {
+    var erst = String(s.schritte || '').split('\n')[0];
+    return '<button class="krise-skill" data-act="skill" data-id="' + esc(s.id) + '"><span class="t">' + esc(s.titel) + '</span><span class="m">' + esc(s.dauer) + ' Min.' + (s.material ? ' · ' + esc(s.material) : '') + '</span>' + (erst ? '<span class="e">' + esc(erst) + '</span>' : '') + '</button>';
+  }).join('');
+  if (l.length > 3) html += '<button class="krise-mehr" data-act="sosWeiter">Andere Vorschläge</button>';
+  return html;
+}
+VIEWS.sos = function () {
+  if (SOS.a == null) { var la = letzteAnsp(); SOS.a = la ? +la.vorher : 7; }
+  var html = '<h2 class="krise-titel">Du bist nicht allein.</h2>';
+  html += '<div class="krise-box"><div class="frage">Wie stark ist es gerade?</div><div class="zahl" id="sZahl">' + SOS.a + '</div><div class="wort" id="sWort">' + WORT[SOS.a] + '</div>' +
+    '<input type="range" min="0" max="10" value="' + SOS.a + '" id="sRegler" aria-label="Anspannung von 0 bis 10"><div class="skala"><span>0</span><span>10</span></div></div>';
+  html += kiBox('kiSkillText', 'Notfall-Coach fragen', 'Schreib in eigenen Worten, was gerade los ist …', 'Passenden Skill finden', 'kiSkill');
+  html += '<button style="margin-top:16px" class="krise-disk' + (SOS.disk ? ' an' : '') + '" data-act="sosDisk">' + (SOS.disk ? '✓ ' : '') + 'Andere sind dabei: nur Unauffälliges</button>';
+  html += '<div id="sListe">' + sosErgebnis() + '</div>';
+  html += '<div class="krise-hilfe"><b>In akuter Gefahr</b>TelefonSeelsorge 0800 111 0 111 (kostenlos, rund um die Uhr) · Notruf 112</div>';
+  html += '<button class="notizlink" data-act="nav" data-id="skills">Alle Skills ansehen</button>';
+  return html;
+};
+NACH.sos = function () {
+  var r = $('#sRegler');
+  r.addEventListener('input', function () {
+    SOS.a = +r.value; SOS.seite = 0;
+    $('#sZahl').textContent = SOS.a;
+    $('#sWort').textContent = WORT[SOS.a];
+    $('#sListe').innerHTML = sosErgebnis();
+  });
+};
+
+/* ---------- Rückblick ---------- */
+var RB = { tab: 'woche', filt: 'alle' };
+var RB_ART = { alle: 'Alle', ansp: 'Anspannung', skill: 'Skills', checkin: 'Check-ins', dank: 'Dankbarkeit', regel: 'Regeln' };
+function zeitstrahl() {
+  var ev = [];
+  D.SkillLog.forEach(function (x) {
+    var s = x.skillId ? skill(x.skillId) : null;
+    ev.push({ art: s ? 'skill' : 'ansp', zeit: x.datum, titel: s ? s.titel : 'Anspannung ' + x.vorher, sub: s ? 'Anspannung ' + x.vorher + (x.nachher !== '' && x.nachher != null ? ' → ' + x.nachher : '') + (x.sterne ? ' · ' + '★'.repeat(x.sterne) : '') : '', notiz: x.notiz, wert: x.vorher });
+  });
+  D.CheckIns.forEach(function (c) {
+    ev.push({ art: 'checkin', zeit: c.datum + (c.art === 'morgen' ? 'T07:00:00' : 'T21:00:00'), titel: CHECK[c.art].titel, sub: (c.schlaf ? 'Schlaf ' + c.schlaf + ' · ' : '') + 'Stimmung ' + c.stimmung + ' · Energie ' + c.energie, notiz: c.notiz });
+  });
+  var dankTage = {};
+  D.Dankbarkeit.forEach(function (x) { if (x.text) (dankTage[x.datum] = dankTage[x.datum] || []).push(x.text); });
+  Object.keys(dankTage).forEach(function (t) { ev.push({ art: 'dank', zeit: t + 'T20:30:00', titel: 'Dankbar für ' + dankTage[t].length + (dankTage[t].length === 1 ? ' Ding' : ' Dinge'), liste: dankTage[t] }); });
+  D.Reflexionen.forEach(function (x) { var r = regel(x.regelId); ev.push({ art: 'regel', zeit: x.datum, titel: r ? r.titel : 'Regel', sub: (WIRKUNG[x.wirkung] || {}).label || '', notiz: x.notiz }); });
+  return ev.filter(function (e) { return RB.filt === 'alle' || e.art === RB.filt; }).sort(function (a, b) { return a.zeit < b.zeit ? 1 : -1; });
+}
+var RB_SYM = { ansp: 'welle', skill: 'hand', checkin: 'sonne', dank: 'herz', regel: 'kompass' };
+VIEWS.rueckblick = function () {
+  var html = '<h2>Rückblick</h2><div class="segment" style="margin-bottom:18px"><button data-act="rbTab" data-id="woche"' + (RB.tab === 'woche' ? ' class="an"' : '') + '>Diese Woche</button><button data-act="rbTab" data-id="zeit"' + (RB.tab === 'zeit' ? ' class="an"' : '') + '>Zeitstrahl</button></div>';
+  if (RB.tab === 'woche') return html + VIEWS.woche(null, function () {}).replace('<h2>Deine Woche</h2>', '');
+  html += '<div class="chips chips-scroll" style="margin-bottom:14px">' + Object.keys(RB_ART).map(function (k) { return '<button class="chip klein' + (RB.filt === k ? ' an' : '') + '" data-act="rbFilt" data-id="' + k + '">' + RB_ART[k] + '</button>'; }).join('') + '</div>';
+  var ev = zeitstrahl(), tag = '';
+  if (!ev.length) return html + leer('Noch nichts hier.', '', '');
+  ev.forEach(function (e) {
+    var d = new Date(e.zeit), t = tagIso(d);
+    if (t !== tag) { if (tag) html += '</div>'; tag = t; html += '<div class="zs-tag">' + esc(t === heute() ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) + '</div><div class="block zs-block">'; }
+    var uhr = e.art === 'dank' || e.art === 'checkin' ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    html += '<div class="zs-e"><span class="sym" style="--c:' + (e.art === 'ansp' ? ANSP_FARBE[e.wert] : e.art === 'skill' ? 'var(--sos)' : e.art === 'dank' ? '#C9A45C' : e.art === 'checkin' ? '#8A8FB8' : 'var(--accent)') + '">' + ikon(RB_SYM[e.art]) + '</span><div class="txt"><b>' + esc(e.titel) + '</b>' + (uhr ? '<span class="uhr">' + uhr + '</span>' : '') +
+      (e.sub ? '<small>' + esc(e.sub) + '</small>' : '') + (e.notiz ? '<small class="nz">' + esc(e.notiz) + '</small>' : '') +
+      (e.liste ? '<ul>' + e.liste.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div></div>';
+  });
+  return html + '</div>';
+};
+
+/* ---------- Einstellungen ---------- */
+VIEWS.mehr = function () {
+  var theme = ls('lk_theme') || 'nacht';
+  var pfeil = svg('pfeil').replace('<svg', '<svg class="pfeil"');
+  var z = function (act, id, sym, titel, sub) {
+    return '<button class="zeile" data-act="' + act + '" data-id="' + id + '"><span class="sym">' + sym + '</span><span class="txt">' + titel + (sub ? '<small>' + sub + '</small>' : '') + '</span>' + pfeil + '</button>';
+  };
+  var html = '<h2>Einstellungen</h2>';
+  html += '<h3>Erinnerungen</h3>' + z('nav', 'erinnerung', '◔', 'Erinnerungen per Mail', (ERI.morgen ? 'Morgens ' + ERI.morgenZeit : '') + (ERI.morgen && ERI.abend ? ' · ' : '') + (ERI.abend ? 'Abends ' + ERI.abendZeit : '') || 'Aus');
+  html += '<h3>Ordnen</h3>' + z('nav', 'bereiche', '◐', 'Lebensbereiche', D.Bereiche.length + ' Bereiche, neue anlegen') +
+    z('nav', 'situationen', '◎', 'Situationen', D.Situationen.length + ' Situationen für SOS und Regeln') +
+    z('nav', 'skills', '✚', 'Notfall-Skills', D.Skills.length + ' Skills');
+  html += '<h3>Dankbarkeit</h3><div class="dankanzahl" style="justify-content:flex-start;margin:0"><span>Jeden Tag</span><button class="icon-btn" data-act="dankAnzahl" data-d="-1" aria-label="Weniger">−</button><b>' + DANK_N + '</b><button class="icon-btn" data-act="dankAnzahl" data-d="1" aria-label="Mehr">+</button><span>Dinge</span></div>';
+  html += '<h3>Darstellung</h3><div class="segment" id="themeWahl">' +
+    '<button data-act="theme" data-id="nacht"' + (theme === 'nacht' ? ' class="an"' : '') + '>Nacht</button>' +
+    '<button data-act="theme" data-id="morgen"' + (theme === 'morgen' ? ' class="an"' : '') + '>Morgen</button></div>';
+  html += '<div class="feld" style="margin-top:18px"><label for="fName">Wie darf ich dich begrüßen?</label><input type="text" id="fName" maxlength="40" placeholder="Dein Name" value="' + esc(ls('lk_name') || '') + '"></div>';
+  html += '<h3>App</h3>' + z('startbildschirm', '', '⌂', 'Auf den Startbildschirm legen', 'So hast du die App immer griffbereit') +
+    (D.sheetUrl ? '<a class="zeile" href="' + esc(D.sheetUrl) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><span class="sym">▦</span><span class="txt">Tabellen am Rechner bearbeiten<small>Öffnet dein Daten-Sheet in Google Drive</small></span>' + pfeil + '</a>' : '') +
+    z('neuLaden', '', '↻', 'Neu laden', 'Daten frisch aus dem Sheet holen');
+  return html;
+};
+
+/* =========================================================
+   Dialoge
+   ========================================================= */
+var modalFertig = null;
+function oeffneModal(html, onReady) {
+  $('#modalBox').innerHTML = html;
+  $('#modal').hidden = false;
+  if (onReady) onReady($('#modalBox'));
+}
+function schliesseModal() {
+  $('#modal').hidden = true;
+  $('#modalBox').innerHTML = '';
+  if (modalFertig) { var f = modalFertig; modalFertig = null; f(false); }
+}
+
+function bestaetige(text, ok) {
+  return new Promise(function (resolve) {
+    oeffneModal('<h2>' + esc(text) + '</h2><div class="aktionen"><button class="btn gefahr" id="mOk">' + esc(ok) + '</button><button class="btn ghost" data-schliessen>Lieber nicht</button></div>');
+    modalFertig = resolve;
+    $('#mOk').onclick = function () { modalFertig = null; schliesseModal(); resolve(true); };
+  });
+}
+
+function symbolWahl(aktuell) {
+  var akt = ICONS[aktuell] ? aktuell : (EMOJI[aktuell] || aktuell || '');
+  return '<input type="hidden" id="mSymbol" value="' + esc(akt) + '"><div class="ikon-raster" id="mSymbole">' + Object.keys(ICONS).map(function (k) {
+    return '<button type="button" class="' + (k === akt ? 'an' : '') + '" data-sym="' + k + '" aria-label="' + k + '">' + ikon(k) + '</button>';
+  }).join('') + '</div>';
+}
+function bindeSymbole(box) {
+  $$('#mSymbole button', box).forEach(function (c) {
+    c.onclick = function () { $('#mSymbol', box).value = c.dataset.sym; $$('#mSymbole button', box).forEach(function (x) { x.classList.toggle('an', x === c); }); };
+  });
+}
+
+function modalBereich(id) {
+  var b = id ? bereich(id) : null;
+  var f = b ? b.farbe : FARBEN[D.Bereiche.length % FARBEN.length];
+  oeffneModal('<h2>' + (b ? 'Bereich bearbeiten' : 'Neuer Lebensbereich') + '</h2>' +
+    '<div class="feld"><label for="mName">Name</label><input type="text" id="mName" maxlength="50" value="' + esc(b ? b.name : '') + '" placeholder="z. B. Familie"></div>' +
+    '<div class="feld"><span class="label">Symbol</span>' + symbolWahl(b ? b.symbol : 'kreis') + '</div>' +
+    '<div class="feld"><span class="label">Farbe</span><div class="farben">' + FARBEN.map(function (c) { return '<button type="button" style="--c:' + c + '" data-farbe="' + c + '"' + (c === f ? ' class="an"' : '') + '></button>'; }).join('') + '</div></div>' +
+    '<div class="aktionen"><button class="btn primaer" id="mSpeichern">' + svg('haken') + 'Speichern</button>' +
+    (b ? '<button class="btn gefahr" id="mLoeschen">' + svg('muell') + 'Löschen</button>' : '') +
+    '<button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+      bindeSymbole(box);
+      $$('.farben button', box).forEach(function (x) { x.onclick = function () { f = x.dataset.farbe; $$('.farben button', box).forEach(function (y) { y.classList.toggle('an', y === x); }); }; });
+      $('#mSpeichern', box).onclick = function () {
+        var name = $('#mName', box).value.trim();
+        if (!name) { $('#mName', box).focus(); return; }
+        sichere('Bereiche', { id: b ? b.id : '', name: name, symbol: $('#mSymbol', box).value.trim(), farbe: f, reihenfolge: b ? b.reihenfolge : D.Bereiche.length });
+        schliesseModal(); render(true); toast('Bereich gespeichert');
+      };
+      if (b) $('#mLoeschen', box).onclick = function () {
+        bestaetige('Bereich „' + b.name + '“ löschen? Die Regeln bleiben erhalten, nur ohne Bereich.', 'Ja, löschen').then(function (ja) {
+          if (!ja) return;
+          entferne('Bereiche', b.id);
+          if (route.view === 'bereich') geh('kompass'); else render(true);
+          toast('Bereich gelöscht');
+        });
+      };
+    });
+}
+
+function modalSituation(id, beiNeu) {
+  var s = id ? situation(id) : null;
+  oeffneModal('<h2>' + (s ? 'Situation bearbeiten' : 'Neue Situation') + '</h2>' +
+    '<div class="feld"><label for="mName">Wie fühlt es sich an?</label><input type="text" id="mName" maxlength="60" value="' + esc(s ? s.name : '') + '" placeholder="z. B. Ich fühle mich abgelehnt"></div>' +
+    '<div class="feld"><span class="label">Symbol</span>' + symbolWahl(s ? s.symbol : 'kreis') + '</div>' +
+    '<div class="aktionen"><button class="btn primaer" id="mSpeichern">' + svg('haken') + 'Speichern</button>' +
+    (s ? '<button class="btn gefahr" id="mLoeschen">' + svg('muell') + 'Löschen</button>' : '') +
+    '<button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+      bindeSymbole(box);
+      $('#mName', box).focus();
+      $('#mSpeichern', box).onclick = function () {
+        var name = $('#mName', box).value.trim();
+        if (!name) { $('#mName', box).focus(); return; }
+        var neu = sichere('Situationen', { id: s ? s.id : '', name: name, symbol: $('#mSymbol', box).value.trim(), reihenfolge: s ? s.reihenfolge : D.Situationen.length });
+        schliesseModal();
+        if (beiNeu) beiNeu(neu); else render(true);
+      };
+      if (s) $('#mLoeschen', box).onclick = function () {
+        bestaetige('Situation „' + s.name + '“ löschen?', 'Ja, löschen').then(function (ja) {
+          if (!ja) return;
+          entferne('Situationen', s.id);
+          jetztAuswahl = jetztAuswahl.filter(function (x) { return x !== s.id; });
+          render(true);
+        });
+      };
+    });
+}
+
+function modalWert(id, beiNeu) {
+  var w = id ? wert(id) : null;
+  var verkn = w ? D.Regeln.filter(function (r) { return ids(r.werte).indexOf(w.id) > -1; }) : [];
+  oeffneModal('<h2>' + (w ? esc(w.name) : 'Neuer Wert') + '</h2>' +
+    '<div class="feld"><label for="mName">Wert</label><input type="text" id="mName" maxlength="50" value="' + esc(w ? w.name : '') + '" placeholder="z. B. Selbstmitgefühl"></div>' +
+    '<div class="feld"><label for="mBeschr">Was bedeutet er für mich?</label><textarea id="mBeschr" rows="3">' + esc(w ? w.beschreibung : '') + '</textarea></div>' +
+    (verkn.length ? '<h3 style="margin-top:6px">Regeln dazu</h3><div class="liste">' + sortRegeln(verkn).map(karte).join('') + '</div>' : '') +
+    '<div class="aktionen"><button class="btn primaer" id="mSpeichern">' + svg('haken') + 'Speichern</button>' +
+    (w ? '<button class="btn gefahr" id="mLoeschen">' + svg('muell') + 'Löschen</button>' : '') +
+    '<button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+      $('#mSpeichern', box).onclick = function () {
+        var name = $('#mName', box).value.trim();
+        if (!name) { $('#mName', box).focus(); return; }
+        var neu = sichere('Werte', { id: w ? w.id : '', name: name, beschreibung: $('#mBeschr', box).value.trim(), reihenfolge: w ? w.reihenfolge : D.Werte.length });
+        schliesseModal();
+        if (beiNeu) beiNeu(neu); else render(true);
+      };
+      if (w) $('#mLoeschen', box).onclick = function () {
+        bestaetige('Wert „' + w.name + '“ löschen?', 'Ja, löschen').then(function (ja) { if (ja) { entferne('Werte', w.id); render(true); } });
+      };
+    });
+}
+
+function modalReflexion(regelId) {
+  var r = regel(regelId);
+  var wahl = 'geholfen';
+  oeffneModal('<h2>Wie war es?</h2><p class="leise">' + esc(r ? (r.titel || r.kernsatz) : '') + '</p>' +
+    '<div class="feld"><div class="segment" id="mWirkung">' + Object.keys(WIRKUNG).map(function (k) {
+      return '<button type="button" data-w="' + k + '"' + (k === wahl ? ' class="an"' : '') + '>' + WIRKUNG[k].label + '</button>';
+    }).join('') + '</div></div>' +
+    '<div class="feld"><label for="mNotiz">Was habe ich bemerkt?</label><textarea id="mNotiz" rows="4" placeholder="Optional. Ein paar Worte reichen."></textarea></div>' +
+    '<div class="aktionen"><button class="btn primaer" id="mSpeichern">' + svg('haken') + 'Festhalten</button><button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+      $$('#mWirkung button', box).forEach(function (b) { b.onclick = function () { wahl = b.dataset.w; $$('#mWirkung button', box).forEach(function (x) { x.classList.toggle('an', x === b); }); }; });
+      $('#mSpeichern', box).onclick = function () {
+        sichere('Reflexionen', { regelId: regelId, wirkung: wahl, notiz: $('#mNotiz', box).value.trim() });
+        schliesseModal();
+        toast(wahl === 'geholfen' ? 'Schön. Festgehalten.' : 'Festgehalten. Auch das ist wertvoll.');
+        if (route.view === 'regel') render(true);
+      };
+    });
+}
+
+function modalStartbildschirm() {
+  oeffneModal('<h2>Auf den Startbildschirm</h2>' +
+    '<h3 style="margin-top:4px">iPhone (Safari)</h3><p>Öffne den Link der App in Safari, tippe unten auf <strong>Teilen</strong> und dann auf <strong>Zum Home-Bildschirm</strong>.</p>' +
+    '<h3>Android (Chrome)</h3><p>Öffne den Link in Chrome, tippe oben rechts auf <strong>⋮</strong> und wähle <strong>Zum Startbildschirm hinzufügen</strong>.</p>' +
+    '<p class="leise klein">Wichtig: Nutze den Link, der auf <strong>/exec</strong> endet. Dann öffnet sich immer die aktuelle Version.</p>' +
+    '<div class="aktionen"><button class="btn primaer" data-schliessen>Verstanden</button></div>');
+}
+
+/* =========================================================
+   Aktionen (ein zentraler Klick-Handler)
+   ========================================================= */
+var atemTimer = null;
+var AKT = {
+  sosSit: function (d) { var i = SOS.sits.indexOf(d.id); if (i > -1) SOS.sits.splice(i, 1); else SOS.sits.push(d.id); SOS.seite = 0; render(true); },
+  sosWeiter: function () { SOS.seite++; $('#sListe').innerHTML = sosErgebnis(); },
+  rbTab: function (d) { RB.tab = d.id; render(true); },
+  rbFilt: function (d) { RB.filt = d.id; render(true); },
+  anspNotizAuf: function () { TRACK.notizAuf = true; render(true); var n = $('#anspNotiz'); if (n) n.focus(); },
+  checkin: function (d) { geh('checkin', d.id); },
+  checkinArt: function (d) { route = { view: 'checkin', param: d.id }; render(true); },
+  ciWahl: function (d, el) {
+    CI_WAHL[d.k] = +d.v;
+    $$('.ci-skala[data-k="' + d.k + '"] button').forEach(function (b) { b.classList.toggle('an', b === el); });
+    var f = CHECK[CI_WAHL.art].felder.find(function (x) { return x.k === d.k; });
+    $('#ciw-' + d.k).textContent = f.w[+d.v - 1];
+  },
+  ciSpeichern: function () {
+    var art = CI_WAHL.art, alt = checkinHeute(art);
+    var o = { id: alt ? alt.id : 'ci-' + heute() + '-' + art, datum: heute(), art: art, notiz: $('#ciText').value.trim() };
+    CHECK[art].felder.forEach(function (f) { o[f.k] = CI_WAHL[f.k] || ''; });
+    sichere('CheckIns', o);
+    toast(art === 'morgen' ? 'Danke. Hab einen guten Tag.' : 'Danke. Schlaf gut.');
+    zurueck();
+  },
+  kiWoche: kiWoche,
+  eriSchalter: function (d) { ERI[d.id] = !ERI[d.id]; eriSichern(); render(true); },
+  eriTest: function () { toast('Ich schicke die Test-Mail …'); rufe('testErinnerung').then(function (m) { toast('Test-Mail an ' + m + ' verschickt.'); }).catch(function (e) { toast('Mail ging nicht raus: ' + (e && e.message || e)); }); },
+  anspEintragen: function () {
+    var v = TRACK.v;
+    sichere('SkillLog', { skillId: '', datum: new Date().toISOString(), vorher: v, nachher: '', sterne: 0, notiz: TRACK.notiz.trim() });
+    TRACK.notiz = ''; TRACK.notizAuf = false; SOS.a = v;
+    toast('Anspannung ' + v + ' eingetragen');
+    render(true);
+  },
+  anspSOS: function () { var l = letzteAnsp(); if (l) SOS.a = +l.vorher; geh('sos'); },
+  dankAnzahl: function (d) { DANK_N = Math.min(10, Math.max(1, DANK_N + (+d.d))); ls('lk_dank_anzahl', DANK_N); render(true); },
+  kiSkill: kiSkill, kiRegel: kiRegel, kiNeuSkill: kiNeuSkill,
+  neuKI: function () { geh('edit', { ki: true, bereich: filter.bereich || '' }); },
+  kiIdee: function (d) { $('#fKern').value = KI_IDEEN[+d.i] || $('#fKern').value; toast('Kernsatz übernommen'); },
+  skill: function (d) { if (!$('#modal').hidden) schliesseModal(); geh('skill', d.id); },
+  skillFertig: function (d) { modalSkillFertig(d.id); },
+  sosDisk: function () { SOS.disk = !SOS.disk; render(true); },
+  sosNotiz: function () { sichere('SkillLog', { skillId: '', datum: new Date().toISOString(), vorher: SOS.a, nachher: '', sterne: 0, notiz: '' }); toast('Anspannung ' + SOS.a + ' notiert'); },
+  skFilter: function (d) { SOS.filt = d.id; render(true); },
+  kopiere: function (d) {
+    var r = regel(d.id);
+    var b = String(r.vorlagen || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean)[+d.i] || '';
+    var z = b.split('\n'); if (z.length > 1) z.shift();
+    try { navigator.clipboard.writeText(z.join('\n')).then(function () { toast('Kopiert'); }, function () { toast('Kopieren geht hier nicht. Halte den Text gedrückt.'); }); }
+    catch (e) { toast('Kopieren geht hier nicht. Halte den Text gedrückt.'); }
+  },
+
+  nav: function (d) { geh(d.id); },
+  zurueck: zurueck,
+  jetzt: function () { geh('jetzt'); },
+  regel: function (d) { if (!$('#modal').hidden) schliesseModal(); geh('regel', d.id); },
+  bereich: function (d) { filter.bereich = d.id === '_ohne' ? '' : d.id; filter.fav = false; filter.q = ''; geh('regeln'); },
+  neu: function (d) { geh('edit', d.bereich ? { bereich: d.bereich } : null); },
+  neuAusJetzt: function () { geh('edit', { situationen: jetztAuswahl.slice() }); },
+  bearbeiten: function (d) { geh('edit', { id: d.id }); },
+  haken: function (d, el) { el.classList.toggle('erledigt'); },
+  sitWahl: function (d, el) {
+    var i = jetztAuswahl.indexOf(d.id);
+    if (i > -1) jetztAuswahl.splice(i, 1); else jetztAuswahl.push(d.id);
+    el.classList.toggle('an', i === -1);
+    zeigeTreffer();
+    if (i === -1) setTimeout(function () { var t = $('#jetztTreffer'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+  },
+  atmen: function () {
+    var box = $('#atmenBox');
+    box.innerHTML = '<div class="atmen"><div class="atem-kreis" id="atemText">einatmen</div></div><p class="leise klein" style="text-align:center">Vier Sekunden ein, sechs Sekunden aus. So lange du magst.</p>';
+    clearInterval(atemTimer);
+    var t = 0;
+    atemTimer = setInterval(function () {
+      var el = $('#atemText');
+      if (!el) { clearInterval(atemTimer); return; }
+      t = (t + 1) % 10;
+      el.textContent = t < 4 ? 'einatmen' : 'ausatmen';
+    }, 1000);
+  },
+  reflexion: function (d) { modalReflexion(d.id); },
+  favorit: function (d) {
+    var r = regel(d.id);
+    if (!r) return;
+    var neu = Object.assign({}, r, { favorit: r.favorit === 'ja' ? '' : 'ja' });
+    sichere('Regeln', neu);
+    toast(neu.favorit === 'ja' ? 'Ist jetzt ein Leitstern' : 'Kein Leitstern mehr');
+    render(true);
+  },
+  regelLoeschen: function (d) {
+    var r = regel(d.id);
+    bestaetige('„' + (r.titel || 'Diese Regel') + '“ wirklich löschen?', 'Ja, löschen').then(function (ja) {
+      if (!ja) return;
+      entferne('Regeln', d.id);
+      toast('Regel gelöscht');
+      zurueck();
+    });
+  },
+  filterAlle: function () { filter.bereich = ''; filter.fav = false; filter.status = ''; render(true); },
+  filterFav: function () { filter.fav = !filter.fav; render(true); },
+  filterBereich: function (d) { filter.bereich = filter.bereich === d.id ? '' : d.id; filter.fav = false; render(true); setTimeout(function () { var k = $('.bkopf') || $('#regelListe'); if (k) k.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 40); },
+  filterStatus: function (d) { filter.status = filter.status === d.id ? '' : d.id; render(true); },
+  toggle: function (d, el) { el.classList.toggle('an'); },
+  segment: function (d, el) { $$('button', el.parentNode).forEach(function (b) { b.classList.toggle('an', b === el); }); },
+  sitNeuInline: function (d, el) {
+    modalSituation(null, function (s) {
+      var c = document.createElement('button');
+      c.type = 'button'; c.className = 'chip klein an'; c.dataset.act = 'toggle'; c.dataset.id = s.id;
+      c.innerHTML = ikon(s.symbol) + esc(s.name);
+      el.parentNode.insertBefore(c, el);
+    });
+  },
+  wertNeuInline: function (d, el) {
+    modalWert(null, function (w) {
+      var c = document.createElement('button');
+      c.type = 'button'; c.className = 'chip klein an'; c.dataset.act = 'toggle'; c.dataset.id = w.id;
+      c.textContent = w.name;
+      el.parentNode.insertBefore(c, el);
+    });
+  },
+  bereichEdit: function (d) { modalBereich(d.id); },
+  sitEdit: function (d) { modalSituation(d.id); },
+  wertEdit: function (d) { modalWert(d.id); },
+  theme: function (d) { setzeTheme(d.id); render(true); },
+  startbildschirm: modalStartbildschirm,
+  neuLaden: function () { toast('Lade neu …'); setSync('laeuft'); laden().then(function () { if (!outbox.length) setSync(''); }); }
+};
+
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-schliessen]')) { schliesseModal(); return; }
+  var el = e.target.closest('[data-act]');
+  if (!el) return;
+  var fn = AKT[el.dataset.act];
+  if (!fn) return;
+  e.preventDefault();
+  fn(el.dataset, el);
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && !$('#modal').hidden) schliesseModal();
+});
+$('#btnZurueck').addEventListener('click', zurueck);
+$$('#nav button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    if (b.dataset.nav === 'neu') geh('edit', null); else geh(b.dataset.nav);
+  });
+});
+window.addEventListener('online', abarbeiten);
+
+function setzeTheme(t) {
+  document.documentElement.dataset.lk = t;
+  ls('lk_theme', t);
+  var m = document.querySelector('meta[name=theme-color]');
+  if (m) m.setAttribute('content', t === 'morgen' ? '#EFEBE3' : '#07090E');
+}
+
+/* =========================================================
+   Start
+   ========================================================= */
+setzeTheme(ls('lk_theme') || 'nacht');
+var c = ls('lk_daten');
+if (c) TABELLEN.concat(['sheetUrl']).forEach(function (t) { if (c[t] != null) D[t] = c[t]; });
+outbox = ls('lk_outbox') || [];
+var ZIEL = window.LK_START || {};
+if (ZIEL.view) { stapel = ZIEL.view === 'kompass' || ZIEL.view === 'sos' || ZIEL.view === 'rueckblick' ? [] : [{ view: 'kompass', param: null }]; route = { view: ZIEL.view, param: ZIEL.param || null }; tiefe = stapel.length; }
+if (c) render(true);
+laden().then(function () { if (!outbox.length) startausstattung(); });
+abarbeiten();
+})();
+</script>
