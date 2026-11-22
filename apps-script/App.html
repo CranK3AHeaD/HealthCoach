@@ -360,14 +360,13 @@ VIEWS.kompass = function () {
   var name = ls('lk_name');
   var html = '<div class="gruss">' + esc(gruss + (name ? ', ' + name : '')) + '</div>';
   html += anspKopf();
-  html += heuteKarte();
 
   var pool = D.Regeln.filter(function (r) { return r.kernsatz && r.status !== 'entwurf'; });
   if (pool.length) {
     var tag = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
     var a = pool.sort(function (x, y) { return x.id < y.id ? -1 : 1; })[tag % pool.length];
-    html += '<div class="anker" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
-      '<div class="label">Ankersatz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
+    html += '<div class="anker ruhig" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
+      '<div class="label">Dein Satz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
       (a.titel ? '<div class="quelle">' + esc(a.titel) + '</div>' : '') + '</div>';
   }
   return html;
@@ -1027,17 +1026,80 @@ function anspKopf() {
   var l = letzteAnsp();
   if (TRACK.v == null) TRACK.v = l ? +l.vorher : 4;
   var v = TRACK.v;
-  var seit = l ? 'Zuletzt eingetragen ' + (tagIso(new Date(l.datum)) === heute() ? 'heute um ' + new Date(l.datum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : 'am ' + datum(l.datum)) + ': ' + l.vorher + '/10' : 'Noch nichts eingetragen';
-  var html = '<div class="hero">' + roseAnspannung(v) + '<div class="anspmitte"><span id="anspWert" style="color:' + ANSP_FARBE[v] + '">' + v + '</span><small id="anspWort">' + WORT[v] + '</small></div></div>';
+  var h = new Date().getHours(), art = h < 14 ? 'morgen' : 'abend', ci = checkinHeute(art), n = dankAm(heute()).length;
+  var links = ringKnopf('checkin', art, art === 'morgen' ? 'sonne' : 'mond', CHECK[art].titel.replace('-Check-in', '-<wbr>Check-in'), ci ? 'erledigt' : '10 Sekunden', ci ? 1 : 0, !!ci);
+  var rechts = ringKnopf('nav', 'dank', 'herz', 'Dankbarkeit', (n >= DANK_N ? DANK_N : n) + ' von ' + DANK_N, Math.min(1, n / DANK_N), n >= DANK_N);
+  var html = '<div class="hero schnell">' + links +
+    '<div class="hero-k">' + roseAnspannung(v) + '<div class="anspmitte"><span id="anspWert" style="color:' + ANSP_FARBE[v] + '">' + v + '</span><small id="anspWort">' + WORT[v] + '</small></div></div>' +
+    rechts + '</div>';
+  html += skillJetzt(l);
   html += '<div class="block ansptrack"><label for="anspRegler" class="frage">Wie angespannt bist du gerade?</label>' +
     '<input type="range" id="anspRegler" min="0" max="10" value="' + v + '" aria-label="Anspannung von 0 bis 10">' +
     '<div class="skala"><span>0 ruhig</span><span>10 am Limit</span></div>' +
     (TRACK.notizAuf ? '<input type="text" id="anspNotiz" maxlength="200" placeholder="Kurze Notiz (z. B. nach Meeting)" value="' + esc(TRACK.notiz) + '">' : '<div style="height:12px"></div>') +
     '<button class="btn primaer" data-act="anspEintragen">' + svg('haken') + 'Eintragen</button>' +
     (TRACK.notizAuf ? '' : '<button class="notizlink" data-act="anspNotizAuf">Notiz hinzufügen</button>') +
-    '<p class="leise klein" style="margin:6px 0 0;text-align:center">' + esc(seit) + '</p></div>';
-  if (l && l.vorher >= 7 && tagIso(new Date(l.datum)) === heute()) html += '<button class="btn-akut" data-act="anspSOS" style="margin-top:12px">Das ist viel gerade. Magst du einen Skill probieren?</button>';
+    tagesVerlauf() + '</div>';
   return html;
+}
+
+function ringKnopf(act, id, sym, titel, sub, anteil, fertig) {
+  var r = 23, u = 2 * Math.PI * r;
+  return '<button class="schnell-k' + (fertig ? ' fertig' : '') + '" data-act="' + act + '" data-id="' + id + '">' +
+    '<span class="ring"><svg viewBox="0 0 54 54" aria-hidden="true"><circle class="r-bg" cx="27" cy="27" r="' + r + '"/>' +
+    (anteil > 0 ? '<circle class="r-an" cx="27" cy="27" r="' + r + '" stroke-dasharray="' + (u * anteil).toFixed(1) + ' ' + u.toFixed(1) + '" transform="rotate(-90 27 27)"/>' : '') +
+    '</svg><span class="hk">' + (fertig ? svg('haken') : ikon(sym)) + '</span></span>' +
+    '<span class="t">' + titel + '</span><small>' + sub + '</small></button>';
+}
+
+/* Ab Anspannung 7: der passendste Skill, ein Tippen öffnet direkt die Anleitung */
+function skillJetzt(l) {
+  if (!l || +l.vorher < 7 || tagIso(new Date(l.datum)) !== heute()) return '';
+  var v = +l.vorher;
+  var ok = D.Skills.filter(function (s) {
+    var st = String(s.status || '');
+    return s.titel && st.indexOf('löschen') === -1 && st.indexOf('prüfen') === -1 &&
+      (s.von === '' || +s.von <= v) && (s.bis === '' || +s.bis >= v);
+  });
+  var rang = function (s) { return (s.favorit === 'ja' ? 0 : 2) + (s.einsatz === 'Akut' ? 0 : 1); };
+  ok.sort(function (a, b) { return rang(a) - rang(b); });
+  var s = ok[0];
+  if (!s) return '<button class="btn-akut" data-act="anspSOS" style="margin:4px 0 12px">Das ist viel gerade. Magst du einen Skill probieren?</button>';
+  return '<div class="skill-jetzt"><div class="sj-kopf">Das ist viel gerade. Probier das hier:</div>' +
+    '<button class="sj-skill" data-act="skill" data-id="' + esc(s.id) + '"><span class="sj-sym">' + (s.favorit === 'ja' ? '★' : '✚') + '</span>' +
+    '<span class="txt"><b>' + esc(s.titel) + '</b><small>' + esc([s.dauer ? s.dauer + ' Min.' : '', s.ansatz, s.diskret === 'ja' ? 'unauffällig' : ''].filter(Boolean).join(' · ')) + '</small></span>' +
+    svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>' +
+    '<button class="sj-mehr" data-act="anspSOS">Andere Skills im SOS</button></div>';
+}
+
+/* Tagesverlauf: alle Einträge von heute als Linie über den Tag */
+function tagesVerlauf() {
+  var tag = heute();
+  var e = anspLog().filter(function (x) { return tagIso(new Date(x.datum)) === tag; });
+  var W = 300, H = 74, x0 = 14, x1 = W - 8, y0 = 8, y1 = H - 18;
+  var X = function (d) { var t = new Date(d), hh = t.getHours() + t.getMinutes() / 60; return x0 + (x1 - x0) * Math.max(0, Math.min(24, hh)) / 24; };
+  var Y = function (v) { return y1 - (y1 - y0) * v / 10; };
+  var svgT = '<svg class="tv" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Anspannung heute">';
+  [0, 5, 10].forEach(function (v) { svgT += '<line class="tv-g" x1="' + x0 + '" x2="' + x1 + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/>'; });
+  [6, 12, 18].forEach(function (hh) { var x = x0 + (x1 - x0) * hh / 24; svgT += '<line class="tv-g" x1="' + x + '" x2="' + x + '" y1="' + y0 + '" y2="' + y1 + '"/><text class="tv-t" x="' + x + '" y="' + (H - 4) + '">' + hh + ' Uhr</text>'; });
+  var jetzt = X(new Date());
+  svgT += '<line class="tv-jetzt" x1="' + jetzt + '" x2="' + jetzt + '" y1="' + y0 + '" y2="' + y1 + '"/>';
+  if (e.length > 1) {
+    var pts = e.map(function (x) { return X(x.datum).toFixed(1) + ',' + Y(+x.vorher).toFixed(1); });
+    svgT += '<polygon class="tv-f" points="' + X(e[0].datum).toFixed(1) + ',' + y1 + ' ' + pts.join(' ') + ' ' + X(e[e.length - 1].datum).toFixed(1) + ',' + y1 + '"/>';
+    svgT += '<polyline class="tv-l" points="' + pts.join(' ') + '"/>';
+  }
+  e.forEach(function (x) { svgT += '<circle class="tv-p" cx="' + X(x.datum).toFixed(1) + '" cy="' + Y(+x.vorher).toFixed(1) + '" r="3.6" fill="' + ANSP_FARBE[+x.vorher] + '"><title>' + new Date(x.datum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr: ' + x.vorher + '/10</title></circle>'; });
+  svgT += '</svg>';
+  var unter;
+  if (!e.length) {
+    var l = letzteAnsp();
+    unter = l ? 'Heute noch kein Eintrag. Zuletzt am ' + datum(l.datum) + ': ' + l.vorher + '/10' : 'Noch nichts eingetragen.';
+  } else {
+    var s = 0; e.forEach(function (x) { s += +x.vorher; });
+    unter = e.length + (e.length === 1 ? ' Eintrag' : ' Einträge') + ' heute · im Schnitt ' + (s / e.length).toFixed(1).replace('.', ',') + ' · zuletzt ' + e[e.length - 1].vorher + '/10';
+  }
+  return '<div class="tagesverlauf"><div class="tv-kopf">Dein Tag</div>' + svgT + '<p class="leise klein">' + esc(unter) + '</p></div>';
 }
 
 /* =========================================================
