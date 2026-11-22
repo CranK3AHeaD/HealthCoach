@@ -365,8 +365,8 @@ VIEWS.kompass = function () {
   if (pool.length) {
     var tag = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
     var a = pool.sort(function (x, y) { return x.id < y.id ? -1 : 1; })[tag % pool.length];
-    html += '<div class="anker ruhig" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
-      '<div class="label">Dein Satz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
+    html += '<div class="anker" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
+      '<div class="label">Ankersatz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
       (a.titel ? '<div class="quelle">' + esc(a.titel) + '</div>' : '') + '</div>';
   }
   return html;
