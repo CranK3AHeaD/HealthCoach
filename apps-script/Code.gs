@@ -1,7 +1,7 @@
 /**
  * Lebenskompass mit SOS – Server (Google Apps Script)
  * Daten liegen in einem Google Sheet. Gibt es noch keins, wird es beim ersten Start angelegt.
- * KI über Gemini: Schlüssel in den Skript-Eigenschaften als GEMINI_API_KEY (optional GEMINI_MODEL).
+ * KI über Gemini: Schlüssel in den Skript-Eigenschaften als GEMINI_API_KEY (optional GEMINI_MODEL, Standard gemini-3.5-flash-lite wie im Notfall-Coach).
  * Erinnerungen per Mail über einen stündlichen Zeit-Trigger.
  */
 
@@ -114,7 +114,7 @@ function ki(prompt) {
   const key = String(props.getProperty('GEMINI_API_KEY') || '').trim();
   if (!key) throw new Error('GEMINI_API_KEY fehlt in den Skript-Eigenschaften');
   const eigen = String(props.getProperty('GEMINI_MODEL') || '').trim();
-  const modelle = (eigen ? [eigen] : []).concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
+  const modelle = (eigen ? [eigen] : []).concat(['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
     .filter(function (m, i, a) { return a.indexOf(m) === i; });
   let letzter = '';
   for (let i = 0; i < modelle.length; i++) {
