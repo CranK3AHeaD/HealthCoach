@@ -830,7 +830,7 @@ function kiSkill() {
     var prompt = 'Du bist ein ruhiger, warmer Notfall-Coach in einer deutschsprachigen Selbsthilfe-App (DBT, Somatic Experiencing, ACT). Sprich die Person mit du an, kurz und ohne Fachjargon.\n' + KI_SICHER +
       '\n\nAnspannung gerade: ' + SOS.a + ' von 10.' + (SOS.disk ? ' Andere Menschen sind dabei, nur unauffällige Skills.' : '') +
       '\nDie Person schreibt: """' + t + '"""\n\nSkill-Bibliothek (id | Titel | Ansatz | Einsatz | passende Anspannung | diskret):\n' + bib +
-      '\n\nAntworte nur mit JSON: {"antwort": "2-3 beruhigende, konkrete Sätze", "skills": ["bis zu 3 ids aus der Bibliothek, das Passendste zuerst"], "neu": null oder {"titel": "...", "ansatz": "Atmung|Körper|Gedanken|Gefühle|Soziales|Schlaf|Essen", "einsatz": "Akut|Regulation|Alltag", "dauer": "Minuten als Zahl", "schritte": ["kurze Schritte"], "hinweis": "Vorsicht-Hinweis oder leer"}}. Schlage "neu" nur vor, wenn kein Skill der Bibliothek gut passt.';
+      '\n\nAntworte nur mit JSON: {"antwort": "2-3 beruhigende, konkrete Sätze", "skills": ["bis zu 3 ids aus der Bibliothek, das Passendste zuerst"], "neu": {"titel": "...", "ansatz": "Atmung|Körper|Gedanken|Gefühle|Soziales|Schlaf|Essen", "einsatz": "Akut|Regulation|Alltag", "dauer": "Minuten als Zahl", "schritte": ["kurze Schritte"], "hinweis": "Vorsicht-Hinweis oder leer"}}. Schlage unter "neu" immer genau einen zusätzlichen Skill vor, der zur Situation passt und noch nicht in der Bibliothek steht (anderer Titel, andere Technik). Erfinde nichts Riskantes, nur bewährte Techniken aus DBT, Somatic Experiencing, ACT oder Achtsamkeit.';
     return ki.json(prompt, { modelTier: 'default' });
   }).then(function (r) {
     kiLaeuft('kiSkillText', false);
@@ -839,7 +839,7 @@ function kiSkill() {
     KI_NEU = r.neu && r.neu.titel ? r.neu : null;
     var h = r.antwort ? '<p class="kiantwort">' + esc(r.antwort) + '</p>' : '';
     if (sk.length) h += '<div class="liste">' + sk.map(skillZeile).join('') + '</div>';
-    if (KI_NEU) h += '<div class="karte kineu"><div class="kopf">Neuer Skill · KI-Vorschlag</div><div class="titel">' + esc(KI_NEU.titel) + '</div>' +
+    if (KI_NEU) h += '<div class="karte kineu"><div class="kopf">Neu für deine Sammlung · KI-Vorschlag</div><div class="titel">' + esc(KI_NEU.titel) + '</div>' +
       '<ol>' + (KI_NEU.schritte || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' +
       (KI_NEU.hinweis ? '<div class="vorsicht">' + esc(KI_NEU.hinweis) + '</div>' : '') +
       '<div class="aktionen"><button class="btn" data-act="kiNeuSkill">' + svg('plus') + 'Als Vorschlag in meine Skills</button></div></div>';
