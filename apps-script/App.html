@@ -787,7 +787,7 @@ function holeKI() {
     json: function (prompt) {
       return rufe('ki', prompt).catch(function (e) {
         var m = String(e && e.message || e);
-        throw { code: m.indexOf('rate_limited') > -1 ? 'rate_limited' : (m.indexOf('GEMINI_API_KEY') > -1 ? 'kein_schluessel' : 'fehler') };
+        throw { code: m.indexOf('rate_limited') > -1 ? 'rate_limited' : (m.indexOf('GEMINI_API_KEY') > -1 ? 'kein_schluessel' : 'fehler'), text: m.replace(/^Error:\s*/, '').replace(/^Exception:\s*/, '') };
       });
     }
   });
@@ -797,7 +797,7 @@ function kiFehler(e) {
   if (c === 'not_granted') return 'Die KI ist gerade nicht erreichbar.';
   if (c === 'kein_schluessel') return 'Für die KI fehlt noch der Gemini-Schlüssel in den Skript-Eigenschaften.';
   if (c === 'rate_limited') return 'Gerade zu viele Anfragen. Versuch es in einer Minute noch einmal.';
-  return 'Die KI hat gerade nicht geantwortet. Versuch es gleich noch einmal.';
+  return 'Die KI hat gerade nicht geantwortet.' + (e && e.text ? ' Grund: ' + e.text : ' Versuch es gleich noch einmal.');
 }
 function kiBox(id, titel, platzhalter, knopf, akt) {
   return '<div class="block kibox"><div class="kikopf"><span class="kistern">✦</span>' + titel + '</div>' +

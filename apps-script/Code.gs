@@ -109,28 +109,49 @@ function loesche(tabelle, id) {
 
 /** KI-Helfer über Gemini. Erwartet einen Prompt und liefert das JSON der Antwort. */
 function ki(prompt) {
-  if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 60000) throw new Error('Ungültige Anfrage');
+  if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 100000) throw new Error('Ungültige Anfrage');
   const props = PropertiesService.getScriptProperties();
-  const key = props.getProperty('GEMINI_API_KEY');
+  const key = String(props.getProperty('GEMINI_API_KEY') || '').trim();
   if (!key) throw new Error('GEMINI_API_KEY fehlt in den Skript-Eigenschaften');
-  const model = props.getProperty('GEMINI_MODEL') || 'gemini-2.5-flash';
-  const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': key },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
-    })
-  });
-  const code = r.getResponseCode();
-  if (code === 429) throw new Error('rate_limited');
-  if (code < 200 || code >= 300) throw new Error('Gemini-Fehler ' + code);
-  const j = JSON.parse(r.getContentText());
-  const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
-  const text = parts.map(function (p) { return p.text || ''; }).join('');
-  try { return JSON.parse(text); } catch (err) { return { antwort: text }; }
+  const eigen = String(props.getProperty('GEMINI_MODEL') || '').trim();
+  const modelle = (eigen ? [eigen] : []).concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])
+    .filter(function (m, i, a) { return a.indexOf(m) === i; });
+  let letzter = '';
+  for (let i = 0; i < modelle.length; i++) {
+    const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelle[i]) + ':generateContent', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-goog-api-key': key },
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.7 }
+      })
+    });
+    const code = r.getResponseCode();
+    const body = r.getContentText();
+    if (code === 429) throw new Error('rate_limited');
+    if (code === 404) { letzter = 'Modell ' + modelle[i] + ' nicht gefunden'; continue; }
+    if (code < 200 || code >= 300) {
+      let msg = body;
+      try { msg = JSON.parse(body).error.message; } catch (err) {}
+      throw new Error('Gemini ' + code + ': ' + String(msg).slice(0, 300));
+    }
+    const j = JSON.parse(body);
+    const kand = j.candidates && j.candidates[0];
+    const parts = (kand && kand.content && kand.content.parts) || [];
+    const text = parts.map(function (p) { return p.text || ''; }).join('').trim();
+    if (!text) throw new Error('Gemini hat leer geantwortet' + (kand && kand.finishReason ? ' (' + kand.finishReason + ')' : ''));
+    const roh = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    try { return JSON.parse(roh); } catch (err) { return { antwort: text }; }
+  }
+  throw new Error('Gemini: ' + letzter);
+}
+
+/** Im Editor ausführen, um die KI zu prüfen. Das Ergebnis steht im Ausführungsprotokoll. */
+function testeKI() {
+  const r = ki('Antworte nur mit JSON: {"antwort": "Die KI funktioniert."}');
+  Logger.log(JSON.stringify(r));
 }
 
 /* ---------- Erinnerungen per Mail ---------- */
