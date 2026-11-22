@@ -1036,9 +1036,8 @@ function anspKopf() {
   html += '<div class="block ansptrack"><label for="anspRegler" class="frage">Wie angespannt bist du gerade?</label>' +
     '<input type="range" id="anspRegler" min="0" max="10" value="' + v + '" aria-label="Anspannung von 0 bis 10">' +
     '<div class="skala"><span>0 ruhig</span><span>10 am Limit</span></div>' +
-    (TRACK.notizAuf ? '<input type="text" id="anspNotiz" maxlength="200" placeholder="Kurze Notiz (z. B. nach Meeting)" value="' + esc(TRACK.notiz) + '">' : '<div style="height:12px"></div>') +
+    '<input type="text" id="anspNotiz" maxlength="200" placeholder="Notiz: Was ist gerade los? (optional)" value="' + esc(TRACK.notiz) + '">' +
     '<button class="btn primaer" data-act="anspEintragen">' + svg('haken') + 'Eintragen</button>' +
-    (TRACK.notizAuf ? '' : '<button class="notizlink" data-act="anspNotizAuf">Notiz hinzufügen</button>') +
     tagesVerlauf() + '</div>';
   return html;
 }
