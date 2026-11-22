@@ -114,7 +114,7 @@ function ki(prompt) {
   const key = String(props.getProperty('GEMINI_API_KEY') || '').trim();
   if (!key) throw new Error('GEMINI_API_KEY fehlt in den Skript-Eigenschaften');
   const eigen = String(props.getProperty('GEMINI_MODEL') || '').trim();
-  const modelle = (eigen ? [eigen] : []).concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])
+  const modelle = (eigen ? [eigen] : []).concat(['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
     .filter(function (m, i, a) { return a.indexOf(m) === i; });
   let letzter = '';
   for (let i = 0; i < modelle.length; i++) {
@@ -132,6 +132,11 @@ function ki(prompt) {
     const body = r.getContentText();
     if (code === 429) throw new Error('rate_limited');
     if (code === 404) { letzter = 'Modell ' + modelle[i] + ' nicht gefunden'; continue; }
+    if (code === 500 || code === 503) { // überlastet: kurz warten, dann das nächste Modell
+      letzter = 'Gemini ist gerade überlastet. Versuch es in ein paar Minuten noch einmal.';
+      Utilities.sleep(700);
+      continue;
+    }
     if (code < 200 || code >= 300) {
       let msg = body;
       try { msg = JSON.parse(body).error.message; } catch (err) {}
@@ -145,7 +150,7 @@ function ki(prompt) {
     const roh = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
     try { return JSON.parse(roh); } catch (err) { return { antwort: text }; }
   }
-  throw new Error('Gemini: ' + letzter);
+  throw new Error(letzter.indexOf('überlastet') > -1 ? letzter : 'Gemini: ' + letzter);
 }
 
 /** Im Editor ausführen, um die KI zu prüfen. Das Ergebnis steht im Ausführungsprotokoll. */
