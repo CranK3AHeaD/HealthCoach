@@ -1,0 +1,4 @@
+# Die Funktion prüft die Anmeldung selbst (siehe functions/ki/index.ts),
+# darum ist die automatische JWT-Prüfung aus. So funktioniert sie auch mit den neuen API-Schlüsseln.
+[functions.ki]
+verify_jwt = false
