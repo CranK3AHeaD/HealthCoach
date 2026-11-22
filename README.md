@@ -11,7 +11,7 @@ Die App ist eine Web-App (PWA). Sie läuft im Browser, lässt sich auf dem Handy
 2. Den Inhalt von [`supabase/schema.sql`](supabase/schema.sql) einfügen und **Run** drücken.
 
 ### 2. Anmeldung einstellen
-1. **Authentication → URL Configuration**: bei **Site URL** die Adresse der App eintragen (zum Beispiel `https://crank3ahead.github.io/healthcoach/`) und dieselbe Adresse auch unter **Redirect URLs** hinzufügen.
+1. **Authentication → URL Configuration**: bei **Site URL** die Adresse der App eintragen (zum Beispiel `https://crank3ahead.github.io/HealthCoach/`) und dieselbe Adresse auch unter **Redirect URLs** hinzufügen.
 2. **Authentication → Sign In / Providers → Email**: aktiviert lassen. Wer nicht per Mail bestätigen will, kann „Confirm email“ ausschalten.
 
 ### 3. KI-Funktion (Gemini) einrichten
