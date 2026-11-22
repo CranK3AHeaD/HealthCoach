@@ -163,7 +163,7 @@ function laden() {
     TABELLEN.forEach(function (t) { D[t] = d[t] || []; });
     D.sheetUrl = d.sheetUrl || '';
     cache();
-    if (route.view !== 'edit') render(true);
+    if (route.view !== 'edit' && !kiAktiv && !tipptGerade()) render(true);
   }).catch(function (e) {
     if (!D.Regeln.length && !D.Bereiche.length) {
       $('#view').innerHTML =
@@ -805,7 +805,14 @@ function kiBox(id, titel, platzhalter, knopf, akt) {
     '<button type="button" class="btn primaer" data-act="' + akt + '" id="' + id + 'Btn">' + knopf + '</button>' +
     '<div class="kiaus" id="' + id + 'Aus" aria-live="polite"></div></div>';
 }
+var kiAktiv = 0;
+function tipptGerade() {
+  var a = document.activeElement;
+  if (a && /^(TEXTAREA|INPUT)$/.test(a.tagName) && a.value) return true;
+  return $$('.kiaus').some(function (x) { return x.innerHTML.trim() !== ''; });
+}
 function kiLaeuft(id, an) {
+  kiAktiv = Math.max(0, kiAktiv + (an ? 1 : -1));
   var b = $('#' + id + 'Btn'); if (!b) return;
   b.disabled = an; b.classList.toggle('laeuft', an);
   if (an) { b.dataset.t = b.textContent; b.textContent = 'Einen Moment …'; } else if (b.dataset.t) b.textContent = b.dataset.t;
