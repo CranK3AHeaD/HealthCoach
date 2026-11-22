@@ -1072,28 +1072,42 @@ function skillJetzt(l) {
     '<button class="sj-mehr" data-act="anspSOS">Andere Skills im SOS</button></div>';
 }
 
-/* Tagesverlauf: alle Einträge von heute als Linie über den Tag.
-   Linien als SVG, das sich in der Breite streckt; Punkte und Uhrzeiten als HTML, damit Schrift und Punkte immer gleich groß bleiben. */
+/* Tagesverlauf: feste Zeitachse von 5 bis 24 Uhr mit festen Marken 6, 12, 15, 18 und 21 Uhr.
+   Linien als SVG, das sich nur in der Breite streckt; Punkte und Uhrzeiten als HTML in fester Größe.
+   Die wichtigsten Maße stehen direkt am Element, damit die Grafik auch ohne die Styles-Datei stimmt. */
+var TV_VON = 5, TV_BIS = 24, TV_MARKEN = [6, 12, 15, 18, 21];
 function tagesVerlauf() {
   var tag = heute();
   var e = anspLog().filter(function (x) { return tagIso(new Date(x.datum)) === tag; });
-  var px = function (d) { var t = new Date(d); return Math.max(0, Math.min(100, (t.getHours() + t.getMinutes() / 60) / 24 * 100)); };
+  var px = function (d) { var t = new Date(d), h = t.getHours() + t.getMinutes() / 60; return Math.max(0, Math.min(100, (h - TV_VON) / (TV_BIS - TV_VON) * 100)); };
+  var pxH = function (h) { return (h - TV_VON) / (TV_BIS - TV_VON) * 100; };
   var py = function (v) { return 100 - v * 10; };
+  var ns = ' vector-effect="non-scaling-stroke"';
   var g = '';
-  [0, 50, 100].forEach(function (y) { g += '<line class="tv-g" x1="0" x2="100" y1="' + y + '" y2="' + y + '"/>'; });
-  [25, 50, 75].forEach(function (x) { g += '<line class="tv-g" x1="' + x + '" x2="' + x + '" y1="0" y2="100"/>'; });
+  [[0, 30, 'rgba(224,138,112,.10)'], [30, 60, 'rgba(201,164,92,.07)'], [60, 100, 'rgba(126,156,134,.08)']].forEach(function (b) {
+    g += '<rect x="0" y="' + b[0] + '" width="100" height="' + (b[1] - b[0]) + '" style="fill:' + b[2] + ';stroke:none"/>';
+  });
+  [0, 50, 100].forEach(function (y) { g += '<line x1="0" x2="100" y1="' + y + '" y2="' + y + '" stroke="rgba(255,255,255,.08)" stroke-width="1"' + ns + '/>'; });
+  TV_MARKEN.forEach(function (h) { var x = pxH(h); g += '<line x1="' + x + '" x2="' + x + '" y1="0" y2="100" stroke="rgba(255,255,255,.06)" stroke-width="1"' + ns + '/>'; });
   var jetzt = px(new Date());
-  g += '<line class="tv-jetzt" x1="' + jetzt + '" x2="' + jetzt + '" y1="0" y2="100"/>';
+  g += '<line x1="' + jetzt + '" x2="' + jetzt + '" y1="0" y2="100" stroke="#C9A45C" stroke-opacity=".5" stroke-width="1" stroke-dasharray="2 3"' + ns + '/>';
   if (e.length > 1) {
     var pts = e.map(function (x) { return px(x.datum).toFixed(2) + ',' + py(+x.vorher); });
-    g += '<polygon class="tv-f" points="' + px(e[0].datum).toFixed(2) + ',100 ' + pts.join(' ') + ' ' + px(e[e.length - 1].datum).toFixed(2) + ',100"/>';
-    g += '<polyline class="tv-l" points="' + pts.join(' ') + '"/>';
+    g += '<polygon points="' + px(e[0].datum).toFixed(2) + ',100 ' + pts.join(' ') + ' ' + px(e[e.length - 1].datum).toFixed(2) + ',100" fill="rgba(201,164,92,.12)" stroke="none"/>';
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="#C9A45C" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' + ns + '/>';
   }
   var punkte = e.map(function (x) {
-    return '<i class="tv-p" style="left:' + px(x.datum).toFixed(2) + '%;top:' + py(+x.vorher) + '%;background:' + ANSP_FARBE[+x.vorher] + '" title="' +
-      new Date(x.datum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr: ' + x.vorher + '/10"></i>';
+    return '<i style="position:absolute;left:' + px(x.datum).toFixed(2) + '%;top:' + py(+x.vorher) + '%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;border:1.5px solid #0d1017;background:' + ANSP_FARBE[+x.vorher] + '" title="' +
+      new Date(x.datum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr: ' + x.vorher + '/10"></i>' +
+      '<b style="position:absolute;left:' + px(x.datum).toFixed(2) + '%;top:' + py(+x.vorher) + '%;transform:translate(-50%,-150%);font-size:10.5px;font-weight:700;line-height:1;color:' + ANSP_FARBE[+x.vorher] + '">' + x.vorher + '</b>';
   }).join('');
-  var achse = [6, 12, 18].map(function (h) { return '<span style="left:' + (h / 24 * 100) + '%">' + h + ' Uhr</span>'; }).join('');
+  var achse = TV_MARKEN.map(function (h) {
+    return '<span style="position:absolute;left:' + pxH(h) + '%;top:0;transform:translateX(-50%);font-size:10.5px;font-weight:400;line-height:16px;letter-spacing:0;white-space:nowrap;color:var(--muted)">' + h + ' Uhr</span>';
+  }).join('');
+  var yAchse = [[10, 'am Limit'], [5, 'angespannt'], [0, 'ruhig']].map(function (y) {
+    return '<span style="position:absolute;right:0;top:' + py(y[0]) + '%;transform:translateY(-50%);text-align:right;line-height:1.1;white-space:nowrap;letter-spacing:0">' +
+      '<b style="font-size:11px;font-weight:700;color:' + ANSP_FARBE[y[0]] + '">' + y[0] + '</b> <small style="font-size:9.5px;color:var(--muted)">' + y[1] + '</small></span>';
+  }).join('');
   var unter;
   if (!e.length) {
     var l = letzteAnsp();
@@ -1102,9 +1116,14 @@ function tagesVerlauf() {
     var s = 0; e.forEach(function (x) { s += +x.vorher; });
     unter = e.length + (e.length === 1 ? ' Eintrag' : ' Einträge') + ' heute · im Schnitt ' + (s / e.length).toFixed(1).replace('.', ',') + ' · zuletzt ' + e[e.length - 1].vorher + '/10';
   }
-  return '<div class="tagesverlauf"><div class="tv-kopf">Dein Tag</div>' +
-    '<div class="tv-feld"><svg class="tv" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Anspannung heute">' + g + '</svg>' + punkte + '</div>' +
-    '<div class="tv-achse">' + achse + '</div><p class="leise klein">' + esc(unter) + '</p></div>';
+  return '<div class="tagesverlauf" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">' +
+    '<div class="tv-kopf" style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:10px">Dein Tag</div>' +
+    '<div style="display:grid;grid-template-columns:auto 1fr;column-gap:8px;padding-top:12px">' +
+    '<div style="position:relative;height:96px;width:58px">' + yAchse + '</div>' +
+    '<div style="position:relative;height:96px;margin-right:10px">' +
+    '<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="96" style="position:absolute;inset:0;width:100%;height:96px;overflow:visible;fill:none" role="img" aria-label="Anspannung heute">' + g + '</svg>' + punkte + '</div>' +
+    '<div></div><div style="position:relative;height:16px;margin:6px 10px 0 0">' + achse + '</div></div>' +
+    '<p class="leise klein" style="margin:8px 0 0;text-align:center">' + esc(unter) + '</p></div>';
 }
 
 /* =========================================================
