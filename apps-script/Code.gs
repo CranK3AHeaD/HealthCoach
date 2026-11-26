@@ -8,7 +8,9 @@
 const APP = {
   titel: 'Lebenskompass',
   icon: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f9ed/512.png',
-  sheetName: 'Lebenskompass – Daten'
+  sheetName: 'Lebenskompass – Daten',
+  // Hülle ohne Google-Banner (GitHub Pages, Ordner kompass/ im Repository)
+  huelle: 'https://crank3ahead.github.io/HealthCoach/kompass/'
 };
 
 const SCHEMA = {
@@ -36,16 +38,82 @@ const ZIELE = ['kompass', 'sos', 'dank', 'woche', 'rueckblick', 'checkin', 'fwz'
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if (!zugang_(p.k)) {
+    return HtmlService.createHtmlOutput(
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<div style="font-family:Georgia,serif;max-width:420px;margin:15vh auto;padding:0 20px;line-height:1.5;color:#E9E4D8;background:#07090E">' +
+      '<h2 style="font-weight:400">Lebenskompass</h2>' +
+      '<p>Dieser Link ist nicht vollständig. Öffne die App bitte über das Symbol auf deinem Home-Bildschirm oder über den Link aus deiner Erinnerungs-Mail.</p></div>')
+      .setTitle(APP.titel)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
   const t = HtmlService.createTemplateFromFile('Index');
   t.start = JSON.stringify({
     view: ZIELE.indexOf(p.v) > -1 ? p.v : '',
-    param: (p.p === 'morgen' || p.p === 'abend') ? p.p : null
+    param: (p.p === 'morgen' || p.p === 'abend') ? p.p : null,
+    k: p.k ? String(p.k) : ''
   });
   const out = t.evaluate()
     .setTitle(APP.titel)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
+    // erlaubt das Einbetten in die Hülle ohne Google-Banner
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   try { out.setFaviconUrl(APP.icon); } catch (err) { /* Icon ist optional */ }
   return out;
+}
+
+/* ---------- Zugang ---------- */
+/* Steht die Bereitstellung auf „Jeder“, braucht jeder Aufruf den geheimen Schlüssel.
+   Du selbst (angemeldet, z. B. bei „Nur ich“) kommst immer hinein. */
+
+function schluessel_() {
+  const props = PropertiesService.getScriptProperties();
+  let k = props.getProperty('APP_SCHLUESSEL');
+  if (!k) {
+    k = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+    props.setProperty('APP_SCHLUESSEL', k);
+  }
+  return k;
+}
+
+function istBesitzer_() {
+  let ich = '', aktiv = '';
+  try { ich = Session.getEffectiveUser().getEmail(); } catch (err) {}
+  try { aktiv = Session.getActiveUser().getEmail(); } catch (err) {}
+  return !!ich && !!aktiv && ich === aktiv;
+}
+
+function zugang_(k) {
+  if (istBesitzer_()) return true;
+  const soll = PropertiesService.getScriptProperties().getProperty('APP_SCHLUESSEL');
+  return !!soll && typeof k === 'string' && k.length === soll.length && k === soll;
+}
+
+/** Einziger Eingang für die App im Browser: prüft den Schlüssel und ruft dann die Funktion auf. */
+function api(k, fn, args) {
+  if (!zugang_(k)) throw new Error('Kein Zugang. Öffne die App über deinen Home-Bildschirm-Link.');
+  const ERLAUBT = {
+    ladeAlles: ladeAlles_, speichere: speichere_, loesche: loesche_, ki: ki_,
+    speichereErinnerung: speichereErinnerung_, testErinnerung: testErinnerung_, linkOhneBanner: linkOhneBanner
+  };
+  if (!Object.prototype.hasOwnProperty.call(ERLAUBT, fn)) throw new Error('Unbekannte Funktion');
+  return ERLAUBT[fn].apply(null, Array.isArray(args) ? args : []);
+}
+
+/** Adresse der Hülle mit deiner App-Adresse und dem Schlüssel. */
+function huellenLink_() {
+  const url = ScriptApp.getService().getUrl() || '';
+  const m = url.match(/\/macros\/s\/([A-Za-z0-9_-]+)\//);
+  if (!m) throw new Error('Die Web-App ist noch nicht bereitgestellt.');
+  return APP.huelle + '?a=' + m[1] + '&k=' + schluessel_();
+}
+
+/** Im Editor ausführen: Der Link für den Home-Bildschirm ohne Google-Banner steht dann im Ausführungsprotokoll. */
+function linkOhneBanner() {
+  const link = huellenLink_();
+  PropertiesService.getScriptProperties().setProperty('HUELLE_AKTIV', 'ja');
+  Logger.log('Dein Link ohne Banner (öffne ihn auf dem Handy und lege ihn auf den Home-Bildschirm):\n' + link);
+  return link;
 }
 
 function include(name) {
@@ -54,7 +122,7 @@ function include(name) {
 
 /* ---------- Öffentliche Funktionen (vom Browser aufgerufen) ---------- */
 
-function ladeAlles() {
+function ladeAlles_() {
   const ss = db_();
   richteEin_(ss);
   const daten = { sheetUrl: ss.getUrl() };
@@ -62,7 +130,7 @@ function ladeAlles() {
   return daten;
 }
 
-function speichere(tabelle, obj) {
+function speichere_(tabelle, obj) {
   const spalten = schema_(tabelle);
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -96,7 +164,7 @@ function speichere(tabelle, obj) {
   }
 }
 
-function loesche(tabelle, id) {
+function loesche_(tabelle, id) {
   schema_(tabelle);
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -111,7 +179,7 @@ function loesche(tabelle, id) {
 }
 
 /** KI-Helfer über Gemini. Erwartet einen Prompt und liefert das JSON der Antwort. */
-function ki(prompt) {
+function ki_(prompt) {
   if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 100000) throw new Error('Ungültige Anfrage');
   const props = PropertiesService.getScriptProperties();
   const key = String(props.getProperty('GEMINI_API_KEY') || '').trim();
@@ -159,13 +227,14 @@ function ki(prompt) {
 
 /** Im Editor ausführen, um die KI zu prüfen. Das Ergebnis steht im Ausführungsprotokoll. */
 function testeKI() {
-  const r = ki('Antworte nur mit JSON: {"antwort": "Die KI funktioniert."}');
+  if (!istBesitzer_()) throw new Error('Nur im Editor');
+  const r = ki_('Antworte nur mit JSON: {"antwort": "Die KI funktioniert."}');
   Logger.log(JSON.stringify(r));
 }
 
 /* ---------- Erinnerungen per Mail ---------- */
 
-function speichereErinnerung(eri) {
+function speichereErinnerung_(eri) {
   const e = {
     morgen: !!eri.morgen, morgenZeit: zeit_(eri.morgenZeit, '07:30'),
     abend: !!eri.abend, abendZeit: zeit_(eri.abendZeit, '21:00'),
@@ -180,7 +249,7 @@ function speichereErinnerung(eri) {
   return e;
 }
 
-function testErinnerung() {
+function testErinnerung_() {
   sendeMail_('abend');
   return Session.getEffectiveUser().getEmail();
 }
@@ -212,7 +281,9 @@ function erinnerungTick() {
 function sendeMail_(art) {
   const url = ScriptApp.getService().getUrl();
   if (!url) throw new Error('Die Web-App ist noch nicht bereitgestellt.');
-  const link = function (v, p) { return url + '?v=' + v + (p ? '&p=' + p : ''); };
+  // Ist die Hülle eingerichtet, führen die Links dorthin (ohne Banner, mit Schlüssel)
+  const basis = PropertiesService.getScriptProperties().getProperty('HUELLE_AKTIV') === 'ja' ? huellenLink_() + '&' : url + '?';
+  const link = function (v, p) { return basis + 'v=' + v + (p ? '&p=' + p : ''); };
   const TEXT = {
     morgen: ['Guten Morgen', 'Wie hast du geschlafen, und wie startest du in den Tag?', [['Morgen-Check-in', link('checkin', 'morgen')], ['Anspannung eintragen', link('kompass')]]],
     abend: ['Wie war dein Tag?', 'Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, und wofür bist du heute dankbar?', [['Abend-Check-in', link('checkin', 'abend')], ['Dankbarkeit', link('dank')], ['Anspannung eintragen', link('kompass')]]],

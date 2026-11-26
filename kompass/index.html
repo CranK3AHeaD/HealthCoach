@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <!-- Hülle für die Apps-Script-App: bettet sie ein, damit der blaue Google-Hinweis oben nicht erscheint.
+       Kein start_url im Manifest: So merkt sich der Home-Bildschirm die Adresse samt ?a=…&k=… -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#07090E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Kompass">
+  <title>Lebenskompass</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <style>
+    html, body { margin: 0; height: 100%; background: #07090E; color: #E9E4D8; overflow: hidden; }
+    body { font: 17px/1.5 Georgia, "Times New Roman", serif; }
+    iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #07090E; }
+    .hinweis { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+    .hinweis div { max-width: 420px; }
+    .hinweis h1 { font-weight: 400; font-size: 26px; margin: 0 0 12px; }
+    .hinweis p { margin: 0 0 12px; color: #B9B3A6; }
+    .rose { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; border: 1px solid #C9A45C; animation: dreh 3s linear infinite; position: relative; }
+    .rose::after { content: ''; position: absolute; left: 50%; top: 6px; width: 2px; height: 22px; margin-left: -1px; background: #C9A45C; border-radius: 2px; }
+    @keyframes dreh { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .rose { animation: none; } }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="hinweis" id="laden"><div><div class="rose" aria-hidden="true"></div><p>Dein Kompass richtet sich aus …</p></div></div>
+  <div class="hinweis" id="fehlt" hidden><div>
+    <h1>Lebenskompass</h1>
+    <p>Diese Seite braucht deinen persönlichen Link.</p>
+    <p>Öffne die App einmal wie gewohnt, tippe auf das Zahnrad, dann auf „Auf den Startbildschirm“, und öffne den Link unter „Ohne blauen Google-Hinweis“.</p>
+  </div></div>
+  <div class="hinweis" id="offline" hidden><div>
+    <h1>Gerade keine Verbindung</h1>
+    <p>Die App braucht kurz Internet, um zu starten. Versuch es gleich noch einmal.</p>
+  </div></div>
+  <script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var gespeichert = {};
+    try { gespeichert = JSON.parse(localStorage.getItem('kompass_huelle')) || {}; } catch (e) {}
+    var a = q.get('a') || gespeichert.a || '';
+    var k = q.get('k') || gespeichert.k || '';
+    if (!/^[A-Za-z0-9_-]{20,}$/.test(a) || !/^[A-Za-z0-9]{20,}$/.test(k)) {
+      document.getElementById('laden').hidden = true;
+      document.getElementById('fehlt').hidden = false;
+      return;
+    }
+    try { localStorage.setItem('kompass_huelle', JSON.stringify({ a: a, k: k })); } catch (e) {}
+
+    var src = 'https://script.google.com/macros/s/' + a + '/exec?k=' + encodeURIComponent(k);
+    var v = q.get('v'), p = q.get('p');
+    if (v && /^[a-z]+$/.test(v)) src += '&v=' + v;
+    if (p && /^[a-z]+$/.test(p)) src += '&p=' + p;
+
+    var f = document.createElement('iframe');
+    f.title = 'Lebenskompass';
+    f.src = src;
+    f.allow = 'clipboard-read; clipboard-write';
+    var fertig = false;
+    f.onload = function () { fertig = true; document.getElementById('laden').hidden = true; };
+    document.body.appendChild(f);
+    setTimeout(function () {
+      if (!fertig && navigator.onLine === false) {
+        document.getElementById('laden').hidden = true;
+        document.getElementById('offline').hidden = false;
+      }
+    }, 8000);
+  })();
+  </script>
+</body>
+</html>
