@@ -70,11 +70,11 @@ function cache() { FW_C = null; ls('lk_daten', D); }
 
 /* ---------- Daten: Google Sheet über Apps Script ---------- */
 var UID = 'ich';
+var SCHLUESSEL = (window.LK_START && window.LK_START.k) || '';
 function rufe(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   return new Promise(function (res, rej) {
-    var r = google.script.run.withSuccessHandler(res).withFailureHandler(rej);
-    r[fn].apply(r, args);
+    google.script.run.withSuccessHandler(res).withFailureHandler(rej).api(SCHLUESSEL, fn, args);
   });
 }
 
@@ -1502,8 +1502,15 @@ function modalStartbildschirm() {
   oeffneModal('<h2>Auf den Startbildschirm</h2>' +
     '<h3 style="margin-top:4px">iPhone (Safari)</h3><p>Öffne den Link der App in Safari, tippe unten auf <strong>Teilen</strong> und dann auf <strong>Zum Home-Bildschirm</strong>.</p>' +
     '<h3>Android (Chrome)</h3><p>Öffne den Link in Chrome, tippe oben rechts auf <strong>⋮</strong> und wähle <strong>Zum Startbildschirm hinzufügen</strong>.</p>' +
-    '<p class="leise klein">Wichtig: Nutze den Link, der auf <strong>/exec</strong> endet. Dann öffnet sich immer die aktuelle Version.</p>' +
-    '<div class="aktionen"><button class="btn primaer" data-schliessen>Verstanden</button></div>');
+    '<h3>Ohne blauen Google-Hinweis</h3><p>Öffne diesen Link auf dem Handy und lege <em>ihn</em> auf den Home-Bildschirm. Dann erscheint der blaue Hinweis oben nicht mehr.</p>' +
+    '<p id="mHuelle" class="leise klein">Link wird erstellt …</p>' +
+    '<p class="leise klein">Der Link enthält deinen persönlichen Schlüssel. Gib ihn nicht weiter.</p>' +
+    '<div class="aktionen"><button class="btn primaer" data-schliessen>Verstanden</button></div>', function (box) {
+      rufe('linkOhneBanner').then(function (url) {
+        var z = $('#mHuelle', box); if (!z) return;
+        z.innerHTML = '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:var(--accent);word-break:break-all">' + esc(url) + '</a>';
+      }).catch(function (e) { var z = $('#mHuelle', box); if (z) z.textContent = 'Link ging gerade nicht: ' + (e && e.message || e); });
+    });
 }
 
 /* =========================================================

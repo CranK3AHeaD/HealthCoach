@@ -32,6 +32,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   // Datenbank, Anmeldung und KI nie zwischenspeichern
   if (url.hostname.endsWith('supabase.co')) return;
+  // Die Hülle für die Apps-Script-App (kompass/) nicht anfassen
+  if (url.origin === self.location.origin && url.pathname.indexOf('/kompass/') > -1) return;
 
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   const isShell = url.origin === self.location.origin || url.hostname === 'cdn.jsdelivr.net' || isFont;

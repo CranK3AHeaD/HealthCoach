@@ -27,3 +27,12 @@ Eigene Zeichen mit Bereich, „Woran ich es merke“, Gewicht (1 bis 3), Alarm, 
 | `FwEinstellungen` | eine Zeile „einstellungen“: Grenzen (achtsam, handeln, tage) und Kontakte (person, personNr, praxis, praxisNr) |
 
 Direktlink: `?v=fwz`.
+
+## Ohne blauen Google-Hinweis (Hülle auf GitHub Pages)
+Öffnet man die `/exec`-Adresse direkt, blendet Google oben „Diese Anwendung wurde von einem Google Apps Script-Nutzer erstellt“ ein. Die Hülle im Ordner `kompass/` bettet die App stattdessen ein, dann ist der Hinweis weg.
+
+- `Code.gs` erlaubt das Einbetten (`XFrameOptionsMode.ALLOWALL`).
+- Die Bereitstellung steht auf **Zugriff: Jeder**, damit das Einbetten auch auf dem iPhone klappt (Safari schickt in eingebetteten Seiten keine Google-Anmeldung mit). Geschützt ist die App dann durch einen geheimen Schlüssel (`APP_SCHLUESSEL` in den Skript-Eigenschaften, wird automatisch angelegt). Jeder Aufruf aus dem Browser läuft über `api()` und prüft ihn. Du selbst kommst angemeldet auch ohne Schlüssel hinein.
+- Den persönlichen Link bekommst du im Editor mit `linkOhneBanner` (steht im Ausführungsprotokoll) oder in der App unter Zahnrad → Auf den Startbildschirm. Danach führen auch die Erinnerungs-Mails zur Hülle.
+- Adresse der Hülle: `https://crank3ahead.github.io/HealthCoach/kompass/?a=…&k=…` (Konstante `APP.huelle` in `Code.gs`).
+- Neuen Schlüssel erzwingen: `APP_SCHLUESSEL` in den Skript-Eigenschaften löschen, dann `linkOhneBanner` erneut ausführen.
