@@ -22,12 +22,15 @@ const SCHEMA = {
                 'material', 'hinweis', 'favorit', 'schritte', 'wirkung', 'ausloeser', 'quelle', 'status'],
   SkillLog:    ['id', 'skillId', 'datum', 'vorher', 'nachher', 'sterne', 'notiz', 'ausloeser'],
   Dankbarkeit: ['id', 'datum', 'nr', 'text'],
-  CheckIns:    ['id', 'datum', 'art', 'schlaf', 'energie', 'stimmung', 'tag', 'notiz']
+  CheckIns:    ['id', 'datum', 'art', 'schlaf', 'energie', 'stimmung', 'tag', 'notiz'],
+  Fruehwarnzeichen: ['id', 'name', 'kategorie', 'woran', 'gewicht', 'alarm', 'hilfe', 'skill', 'auto', 'reihenfolge'],
+  FwEintraege: ['id', 'datum', 'zeichen'],
+  FwEinstellungen: ['id', 'achtsam', 'handeln', 'tage', 'person', 'personNr', 'praxis', 'praxisNr']
 };
 
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '4';
 
-const ZIELE = ['kompass', 'sos', 'dank', 'woche', 'rueckblick', 'checkin'];
+const ZIELE = ['kompass', 'sos', 'dank', 'woche', 'rueckblick', 'checkin', 'fwz'];
 
 /* ---------- Web-App ---------- */
 
