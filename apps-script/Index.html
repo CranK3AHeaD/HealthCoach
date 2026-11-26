@@ -18,6 +18,8 @@
   <body>
     <div class="sky" aria-hidden="true"></div>
     <div class="korn" aria-hidden="true"></div>
+    <div class="sternbild-himmel" id="sternbildHimmel" aria-hidden="true"></div>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="nsGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3CF"/><stop offset=".5" stop-color="#E2BE6E"/><stop offset="1" stop-color="#A47B34"/></linearGradient></defs></svg>
 
     <header class="top">
       <button class="icon-btn" id="btnZurueck" aria-label="Zurück" hidden>
@@ -33,6 +35,9 @@
       </div>
       <h1 class="top-title" id="topTitel" hidden></h1>
       <span class="sync" id="sync" title="Synchronisierung"></span>
+      <button class="icon-btn" data-act="nav" data-id="mehr" aria-label="Einstellungen" title="Einstellungen">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>
+      </button>
     </header>
 
     <main id="view" class="view" tabindex="-1">
@@ -50,11 +55,11 @@
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
       </button>
       <button data-nav="sos" class="nav-sos-mitte" aria-label="SOS, Hilfe jetzt"><b>SOS</b></button>
+      <button data-nav="fwz" aria-label="Frühwarnzeichen" title="Frühwarnzeichen">
+        <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M8.5 13.5c1.2-1.5 2.4-1.5 3.5 0s2.3 1.5 3.5 0"/></svg>
+      </button>
       <button data-nav="rueckblick" aria-label="Rückblick" title="Rückblick">
         <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/><path d="M12 8v4l3 2"/></svg>
-      </button>
-      <button data-nav="mehr" aria-label="Einstellungen" title="Einstellungen">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>
       </button>
     </nav>
 

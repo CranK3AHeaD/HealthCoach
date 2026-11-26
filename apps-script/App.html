@@ -5,7 +5,7 @@
 /* =========================================================
    Zustand, Speicher, Synchronisierung
    ========================================================= */
-var TABELLEN = ['Bereiche', 'Situationen', 'Werte', 'Regeln', 'Reflexionen', 'Skills', 'SkillLog', 'Dankbarkeit', 'CheckIns'];
+var TABELLEN = ['Bereiche', 'Situationen', 'Werte', 'Regeln', 'Reflexionen', 'Skills', 'SkillLog', 'Dankbarkeit', 'CheckIns', 'Fruehwarnzeichen', 'FwEintraege', 'FwEinstellungen'];
 var STATUS = { gilt: 'Gilt', entwurf: 'Entwurf', pruefen: 'Überprüfen' };
 var WIRKUNG = {
   geholfen: { label: 'Hat geholfen', zeichen: '✓' },
@@ -52,7 +52,7 @@ function ikon(sym, cls) {
   return '<span class="ic-txt">' + esc(sym || '·') + '</span>';
 }
 
-var D = { Bereiche: [], Situationen: [], Werte: [], Regeln: [], Reflexionen: [], Skills: [], SkillLog: [], Dankbarkeit: [], CheckIns: [], sheetUrl: '' };
+var D = { Bereiche: [], Situationen: [], Werte: [], Regeln: [], Reflexionen: [], Skills: [], SkillLog: [], Dankbarkeit: [], CheckIns: [], Fruehwarnzeichen: [], FwEintraege: [], FwEinstellungen: [], sheetUrl: '' };
 var route = { view: 'kompass', param: null };
 var tiefe = 0;
 var filter = { q: '', bereich: '', fav: false, status: '' };
@@ -66,7 +66,7 @@ function ls(k, v) {
     localStorage.setItem(k, JSON.stringify(v));
   } catch (e) { return null; }
 }
-function cache() { ls('lk_daten', D); }
+function cache() { FW_C = null; ls('lk_daten', D); }
 
 /* ---------- Daten: Google Sheet über Apps Script ---------- */
 var UID = 'ich';
@@ -235,7 +235,7 @@ function toast(t) {
 /* =========================================================
    Navigation
    ========================================================= */
-var HAUPT = ['kompass', 'regeln', 'sos', 'rueckblick', 'mehr'];
+var HAUPT = ['kompass', 'regeln', 'sos', 'fwz', 'rueckblick', 'mehr'];
 var stapel = [];
 
 function geh(view, param) {
@@ -262,6 +262,7 @@ try {
 
 function render(still) {
   var v = VIEWS[route.view] ? route.view : 'kompass';
+  FW_C = null; fwEinstLaden(); if (v !== 'checkin') FW_CI = null;
   var titel = '';
   var html = VIEWS[v](route.param, function (t) { titel = t; });
   var el = $('#view');
@@ -281,6 +282,7 @@ function render(still) {
   document.body.classList.toggle('krise', v === 'sos' || v === 'skill');
   $$('#nav button').forEach(function (b) { b.classList.toggle('aktiv', b.dataset.nav === navZiel); });
   if (NACH[v]) NACH[v](route.param);
+  nordsternStufe(); sternHimmel();
 }
 
 /* =========================================================
@@ -360,13 +362,14 @@ VIEWS.kompass = function () {
   var name = ls('lk_name');
   var html = '<div class="gruss">' + esc(gruss + (name ? ', ' + name : '')) + '</div>';
   html += anspKopf();
+  html += fwStartKarte();
 
   var pool = D.Regeln.filter(function (r) { return r.kernsatz && r.status !== 'entwurf'; });
   if (pool.length) {
     var tag = Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
     var a = pool.sort(function (x, y) { return x.id < y.id ? -1 : 1; })[tag % pool.length];
     html += '<div class="anker" data-act="regel" data-id="' + esc(a.id) + '" role="button">' +
-      '<div class="label">Ankersatz für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
+      '<div class="label ns">' + nordstern() + 'Nordstern für heute</div><blockquote>' + esc(a.kernsatz) + '</blockquote>' +
       (a.titel ? '<div class="quelle">' + esc(a.titel) + '</div>' : '') + '</div>';
   }
   return html;
@@ -401,6 +404,7 @@ NACH.jetzt = function () { zeigeTreffer(); };
 NACH.kompass = function () {
   var r = $('#anspRegler'); if (r) r.addEventListener('input', function () { anspSetze(+r.value); });
   var n = $('#anspNotiz'); if (n) n.addEventListener('input', function () { TRACK.notiz = n.value; });
+  anspZiehen();
 };
 
 function zeigeTreffer() {
@@ -444,7 +448,7 @@ VIEWS.regeln = function () {
     return '<button class="chip klein' + (filter.status === k ? ' an' : '') + '" data-act="filterStatus" data-id="' + k + '">' + STATUS[k] + '</button>';
   }).join('') + '</div>';
   html += '<div id="regelListe"></div>';
-  html += '<h3>Was dahinter steht</h3><button class="zeile" data-act="nav" data-id="werte"><span class="sym" style="color:var(--accent)">✦</span><span class="txt">Deine Werte<small>' + D.Werte.length + ' Werte geben deinen Regeln die Richtung</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+  html += '<h3>Was dahinter steht</h3><button class="zeile" data-act="nav" data-id="werte"><span class="sym" style="color:var(--accent)">✦</span><span class="txt">Mein Nordstern<small>' + D.Werte.length + ' Werte geben deinen Regeln die Richtung</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
   return html;
 };
 NACH.regeln = function () {
@@ -596,8 +600,8 @@ NACH.edit = function (param) {
 };
 
 VIEWS.werte = function (_, setTitel) {
-  if (setTitel) setTitel('Werte');
-  var html = '<h2>Deine Werte</h2><p class="leise">Werte sind die Richtung, in die dein Kompass zeigt. Regeln sind die Wege dorthin.</p>';
+  if (setTitel) setTitel('Mein Nordstern');
+  var html = nordsternKopf();
   var liste = D.Werte.slice().sort(nachReihe);
   if (!liste.length) {
     html += leer('Noch keine Werte notiert.', 'Was ist dir im Leben wirklich wichtig? Zum Beispiel Sicherheit, Ehrlichkeit, Selbstmitgefühl.', '');
@@ -623,7 +627,7 @@ VIEWS.mehr = function () {
   html += z('nav" data-id="erinnerung', '◔', 'Erinnerungen', (ERI.morgen ? 'Morgens ' + ERI.morgenZeit : '') + (ERI.morgen && ERI.abend ? ' · ' : '') + (ERI.abend ? 'Abends ' + ERI.abendZeit : '') || 'Aus');
   html += z('checkin" data-id="morgen', '☼', 'Check-in', 'Morgens und abends in 10 Sekunden');
   html += z('nav" data-id="dank', '☀', 'Dankbarkeit', 'Jeden Tag ' + DANK_N + ' Dinge, die gut waren');
-  html += z('nav" data-id="werte', '✦', 'Werte', D.Werte.length + ' Werte');
+  html += z('nav" data-id="werte', '✦', 'Mein Nordstern', D.Werte.length + ' Werte');
   html += z('nav" data-id="skills', '✚', 'Notfall-Skills', D.Skills.length + ' Skills');
   html += z('nav" data-id="verlauf', '↗', 'Verlauf', 'Anspannung und Skill-Bewertungen');
   html += z('nav" data-id="bereiche', '◐', 'Lebensbereiche', D.Bereiche.length + ' Bereiche');
@@ -964,41 +968,6 @@ function anspLog() { return D.SkillLog.filter(function (x) { return x.vorher !==
 function letzteAnsp() { var l = anspLog(); return l.length ? l[l.length - 1] : null; }
 var TRACK = { v: null, notiz: '' };
 function anspWinkel(v) { return -135 + v * 27; }
-function roseAnspannung(v) {
-  var P = function (r, grad) { var a = grad * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
-  var t = '';
-  for (var i = 0; i <= 50; i++) {
-    var g = -135 + i * 5.4, haupt = i % 5 === 0;
-    t += '<path class="' + (haupt ? 'tick-h' : 'tick') + '" d="M' + P(88, g) + 'L' + P(88 - (haupt ? 7 : 3), g) + '"/>';
-  }
-  var zahlen = '';
-  for (var z = 0; z <= 10; z++) { var xy = P(73, anspWinkel(z)).split(' '); zahlen += '<text class="grad' + (z === v ? ' an' : '') + '" x="' + xy[0] + '" y="' + xy[1] + '" dy="3">' + z + '</text>'; }
-  var bogen = function (von, bis, r) {
-    var gross = (bis - von) > 180 ? 1 : 0;
-    return 'M' + P(r, von) + 'A' + r + ' ' + r + ' 0 ' + gross + ' 1 ' + P(r, bis);
-  };
-  var spitze = function (g, L, w, cls) {
-    return '<path class="' + cls + '-l" d="M100 100L' + P(L, g) + 'L' + P(w, g - 45) + 'Z"/>' +
-           '<path class="' + cls + '-d" d="M100 100L' + P(L, g) + 'L' + P(w, g + 45) + 'Z"/>';
-  };
-  var stern = '';
-  [45, 135, 225, 315].forEach(function (g) { stern += spitze(g, 34, 8, 'neben'); });
-  [90, 180, 270].forEach(function (g) { stern += spitze(g, 46, 10, 'haupt'); });
-  stern += spitze(0, 62, 10, 'nord');
-  return '<svg class="rose ansp" viewBox="0 0 200 200" role="img" aria-label="Anspannung ' + v + ' von 10"><defs>' +
-    '<linearGradient id="messing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E2B3"/><stop offset=".45" stop-color="#C9A45C"/><stop offset="1" stop-color="#7A5A24"/></linearGradient>' +
-    '<linearGradient id="messingD" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B89049"/><stop offset="1" stop-color="#5E4318"/></linearGradient>' +
-    '<linearGradient id="anspVerlauf" x1="0" y1="1" x2="1" y2="1"><stop offset="0" stop-color="#4F86C6"/><stop offset=".5" stop-color="#D9AE4E"/><stop offset="1" stop-color="#B8336A"/></linearGradient>' +
-    '<radialGradient id="glanz" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="var(--glow)"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>' +
-    '</defs>' +
-    '<circle cx="100" cy="100" r="99" fill="url(#glanz)" stroke="none"/>' +
-    '<circle class="bezel" cx="100" cy="100" r="96"/><circle class="bezel-2" cx="100" cy="100" r="92"/>' +
-    '<path class="skala-bg" d="' + bogen(-135, 135, 82) + '"/>' +
-    '<path class="skala-an" id="anspBogen" d="' + bogen(-135, Math.max(-134.5, anspWinkel(v)), 82) + '" stroke="' + ANSP_FARBE[v] + '"/>' +
-    t + zahlen + '<circle class="ring-i" cx="100" cy="100" r="56"/>' +
-    '<g class="zeiger" id="anspZeiger" style="transform:rotate(' + anspWinkel(v) + 'deg)"><g class="stern">' + stern + '</g></g>' +
-    '<circle class="mitte" cx="100" cy="100" r="5.5"/><circle class="mitte-p" cx="100" cy="100" r="1.8"/></svg>';
-}
 function anspVerlaufHtml() {
   var l = anspLog().slice(-7);
   if (!l.length) return '';
@@ -1007,20 +976,6 @@ function anspVerlaufHtml() {
     var tag = tagIso(d) === heute() ? h : d.toLocaleDateString('de-DE', { weekday: 'short' });
     return '<div class="sp"><b style="height:' + Math.max(6, x.vorher * 10) + '%;background:' + ANSP_FARBE[x.vorher] + '"></b><i>' + x.vorher + '</i><small>' + esc(tag) + '</small></div>';
   }).join('') + '</div>';
-}
-function anspSetze(v) {
-  TRACK.v = v;
-  var z = $('#anspZeiger'); if (z) z.style.transform = 'rotate(' + anspWinkel(v) + 'deg)';
-  var b = $('#anspBogen');
-  if (b) {
-    var r = 82, P = function (g) { var a = g * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
-    var bis = Math.max(-134.5, anspWinkel(v));
-    b.setAttribute('d', 'M' + P(-135) + 'A82 82 0 ' + ((bis + 135) > 180 ? 1 : 0) + ' 1 ' + P(bis));
-    b.setAttribute('stroke', ANSP_FARBE[v]);
-  }
-  $$('.rose.ansp .grad').forEach(function (t) { t.classList.toggle('an', +t.textContent === v); });
-  var w = $('#anspWert'); if (w) { w.textContent = v; w.style.color = ANSP_FARBE[v]; }
-  var wo = $('#anspWort'); if (wo) wo.textContent = WORT[v];
 }
 function anspKopf() {
   var l = letzteAnsp();
@@ -1171,6 +1126,7 @@ VIEWS.checkin = function (art, setTitel) {
   }).join('');
   html += '<div class="feld"><label for="ciText">' + k.text + '</label><input type="text" id="ciText" maxlength="200" placeholder="' + esc(k.platz) + '" value="' + esc(c.notiz || '') + '"></div>';
   if (art === 'abend') html += '<button class="block dankkarte" data-act="nav" data-id="dank" style="margin-top:4px"><span class="sym" style="--c:#C9A45C">' + ikon('sonne') + '</span><span class="txt"><strong>Noch schnell zur Dankbarkeit?</strong><small>' + dankAm(heute()).length + ' von ' + DANK_N + ' notiert</small></span></button>';
+  if (art === 'abend') html += fwCheckinTeil();
   html += '<div class="aktionen"><button class="btn primaer" data-act="ciSpeichern">' + svg('haken') + 'Fertig</button><button class="btn ghost" data-act="zurueck">Später</button></div>';
   return html;
 };
@@ -1227,6 +1183,7 @@ VIEWS.woche = function (_, setTitel) {
     var s = skill(id), x = w.skills[id], dr = mittel(x.drop);
     return s ? '<button class="karte skill" data-act="skill" data-id="' + esc(id) + '"><span class="sym">' + ikon(ANSATZ_IKON[s.ansatz] || 'kreis') + '</span><span class="txt">' + esc(s.titel) + '<small>' + x.n + '-mal genutzt' + (dr != null ? ' · Anspannung im Schnitt −' + String(dr).replace('.', ',') : '') + '</small></span></button>' : '';
   }).join('') + '</div>' : '<p class="leise">Diese Woche keine Skills eingetragen.</p>');
+  html += sternbildWoche(w);
   if (w.dank.length) {
     var tipps = w.dank.slice().sort(function () { return 0.5 - Math.random(); }).slice(0, 3);
     html += '<h3>Gute Momente</h3><div class="block danktag"><ul>' + tipps.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
@@ -1369,7 +1326,7 @@ function zeitstrahl() {
 var RB_SYM = { ansp: 'welle', skill: 'hand', checkin: 'sonne', dank: 'herz', regel: 'kompass' };
 VIEWS.rueckblick = function () {
   var html = '<h2>Rückblick</h2><div class="segment" style="margin-bottom:18px"><button data-act="rbTab" data-id="woche"' + (RB.tab === 'woche' ? ' class="an"' : '') + '>Diese Woche</button><button data-act="rbTab" data-id="zeit"' + (RB.tab === 'zeit' ? ' class="an"' : '') + '>Zeitstrahl</button></div>';
-  if (RB.tab === 'woche') return html + VIEWS.woche(null, function () {}).replace('<h2>Deine Woche</h2>', '');
+  if (RB.tab === 'woche') return html + fwRueckblickKarte() + VIEWS.woche(null, function () {}).replace('<h2>Deine Woche</h2>', '');
   html += '<div class="chips chips-scroll" style="margin-bottom:14px">' + Object.keys(RB_ART).map(function (k) { return '<button class="chip klein' + (RB.filt === k ? ' an' : '') + '" data-act="rbFilt" data-id="' + k + '">' + RB_ART[k] + '</button>'; }).join('') + '</div>';
   var ev = zeitstrahl(), tag = '';
   if (!ev.length) return html + leer('Noch nichts hier.', '', '');
@@ -1572,6 +1529,7 @@ var AKT = {
     var o = { id: alt ? alt.id : 'ci-' + heute() + '-' + art, datum: heute(), art: art, notiz: $('#ciText').value.trim() };
     CHECK[art].felder.forEach(function (f) { o[f.k] = CI_WAHL[f.k] || ''; });
     sichere('CheckIns', o);
+    if (art === 'abend') fwCiSpeichern();
     toast(art === 'morgen' ? 'Danke. Hab einen guten Tag.' : 'Danke. Schlaf gut.');
     zurueck();
   },
@@ -1709,12 +1667,649 @@ function setzeTheme(t) {
 /* =========================================================
    Start
    ========================================================= */
+/* =========================================================
+   Frühwarnzeichen
+   Daten: Tabellenblätter „Fruehwarnzeichen“ (deine Zeichen) und
+   „FwEintraege“ (eine Zeile pro Tag mit den angetippten Zeichen).
+   Grenzen und Kontakte stehen im Tabellenblatt „FwEinstellungen“ (eine Zeile).
+   ========================================================= */
+var FW_KAT = [['schlaf', 'Schlaf'], ['stimmung', 'Stimmung'], ['gedanken', 'Gedanken'], ['verhalten', 'Verhalten'], ['koerper', 'Körper']];
+var FW_GEW = { 1: 'leicht', 2: 'mittel', 3: 'stark' };
+var FW_AUTO = {
+  schlaf: 'Morgen-Check-in: Schlaf „schlecht“ oder schlechter',
+  anspannung: 'Dein Tag: Anspannung über 6'
+};
+/* Startpaket, falls noch keine Zeichen angelegt sind */
+var FW_START = [
+  { id: 'fw-schlaf', kategorie: 'schlaf', name: 'Schlafe schlecht', gewicht: 2, auto: 'schlaf', woran: 'Ich liege länger als 30 Minuten wach oder wache vor 5 Uhr auf, an mindestens 2 Nächten.', hilfe: ['Ab 22 Uhr kein Handy', 'Gleiche Aufstehzeit, auch am Wochenende'], skill: 'Skill_0060' },
+  { id: 'fw-gereizt', kategorie: 'stimmung', name: 'Bin gereizt', gewicht: 1, woran: 'Ich reagiere scharf auf Kleinigkeiten, über die ich sonst lache.', hilfe: ['Kurz rausgehen, bevor ich reagiere'], skill: 'Skill_0014' },
+  { id: 'fw-freudlos', kategorie: 'stimmung', name: 'Nichts macht mir Freude', gewicht: 3, woran: 'Dinge, auf die ich mich sonst freue, lassen mich kalt.', hilfe: ['Eine kleine angenehme Sache planen und machen', 'Erst tun, dann schauen, ob Lust kommt'] },
+  { id: 'fw-gruebeln', kategorie: 'gedanken', name: 'Grübeln und Gedankenkreisen', gewicht: 2, woran: 'Dieselben Gedanken drehen sich mehr als eine Stunde am Tag im Kreis.', hilfe: ['Grübelzeit: 15 Minuten am Nachmittag, alles aufschreiben'], skill: 'Skill_0061' },
+  { id: 'fw-hoffnungslos', kategorie: 'gedanken', name: 'Hoffnungslose Gedanken', gewicht: 3, alarm: true, woran: 'Ich denke, dass sich nichts mehr bessert oder alles sinnlos ist.', hilfe: ['Nicht allein damit bleiben: Vertrauensperson anrufen', 'Notfallplan öffnen'] },
+  { id: 'fw-rueckzug', kategorie: 'verhalten', name: 'Ziehe mich zurück', gewicht: 2, woran: 'Ich sage Treffen ab oder antworte nicht mehr auf Nachrichten.', hilfe: ['Eine Person anschreiben, auch nur kurz', 'Verabredung verkürzen statt absagen'] },
+  { id: 'fw-haushalt', kategorie: 'verhalten', name: 'Alltag bleibt liegen', gewicht: 2, woran: 'Geschirr und Wäsche bleiben mehrere Tage liegen, ich esse unregelmäßig.', hilfe: ['Nur eine Mini-Aufgabe: Geschirr von heute'] },
+  { id: 'fw-anspannung', kategorie: 'koerper', name: 'Hohe Anspannung', gewicht: 2, auto: 'anspannung', woran: 'Mein Anspannungswert liegt über 6.', hilfe: ['Jeden Tag einen Körper-Skill einplanen'], skill: 'Skill_0008' },
+  { id: 'fw-erschoepft', kategorie: 'koerper', name: 'Erschöpft trotz Schlaf', gewicht: 2, woran: 'Ich bin morgens schon müde, obwohl ich genug geschlafen habe.', hilfe: ['Tagesplan halbieren, Pausen eintragen'], skill: 'Skill_0030' }
+];
+var FW_VORSCHLAG = ['Appetit verändert', 'Konzentration lässt nach', 'Mehr Alkohol', 'Termine vergessen', 'Kopf- oder Bauchschmerzen', 'Hobbys liegen lassen'];
+var FW = { tab: 'stand' };
+var FWG = { achtsam: 12, handeln: 20, tage: 3 };
+var FW_KONTAKT = { person: '', personNr: '', praxis: '', praxisNr: '' };
+/* Grenzen und Kontakte aus dem Sheet lesen. Ältere Werte, die nur auf dem Gerät lagen, dienen als Rückfall. */
+function fwEinstLaden() {
+  var r = (D.FwEinstellungen || []).find(function (x) { return x.id === 'einstellungen'; });
+  var g = r || ls('lk_fw_grenzen') || {}, k = r || ls('lk_fw_kontakte') || {};
+  FWG = { achtsam: +g.achtsam || 12, handeln: +g.handeln || 20, tage: +g.tage || 3 };
+  FW_KONTAKT = { person: k.person || '', personNr: k.personNr || '', praxis: k.praxis || '', praxisNr: k.praxisNr || '' };
+}
+function fwEinstSpeichern() {
+  sichere('FwEinstellungen', {
+    id: 'einstellungen', achtsam: String(FWG.achtsam), handeln: String(FWG.handeln), tage: String(FWG.tage),
+    person: FW_KONTAKT.person, personNr: FW_KONTAKT.personNr, praxis: FW_KONTAKT.praxis, praxisNr: FW_KONTAKT.praxisNr
+  });
+}
+
+/* Zwischenspeicher: wird pro Anzeige einmal berechnet und bei jeder Datenänderung verworfen */
+var FW_C = null;
+function fwC() {
+  if (FW_C) return FW_C;
+  var liste = D.Fruehwarnzeichen.map(fwNorm).sort(nachReihe), byId = {}, maxA = {}, schlaf = {};
+  liste.forEach(function (z) { byId[z.id] = z; });
+  if (liste.some(function (z) { return z.auto === 'anspannung'; })) {
+    D.SkillLog.forEach(function (x) {
+      if (x.vorher === '' || x.vorher == null) return;
+      var t = tagIso(new Date(x.datum)), v = +x.vorher;
+      if (!(t in maxA) || v > maxA[t]) maxA[t] = v;
+    });
+  }
+  D.CheckIns.forEach(function (c) { if (c.art === 'morgen') schlaf[c.datum] = +c.schlaf; });
+  FW_C = { liste: liste, byId: byId, maxA: maxA, schlaf: schlaf, tage: null };
+  FW_C.tage = letzteTage(14).map(fwAmTag);
+  return FW_C;
+}
+
+function fwNorm(r) {
+  return {
+    id: r.id, name: r.name || '', kat: r.kategorie || 'verhalten', woran: r.woran || '',
+    g: Math.min(3, Math.max(1, +r.gewicht || 2)), alarm: r.alarm === 'ja',
+    hilfe: String(r.hilfe || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean),
+    skill: r.skill || '', auto: FW_AUTO[r.auto] ? r.auto : '', reihenfolge: +r.reihenfolge || 0
+  };
+}
+function fwListe() { return fwC().liste; }
+function fwZ(id) { return fwC().byId[id] || null; }
+function fwSpeichereZ(z) {
+  var alt = D.Fruehwarnzeichen.find(function (x) { return x.id === z.id; });
+  return sichere('Fruehwarnzeichen', {
+    id: z.id, name: z.name, kategorie: z.kat, woran: z.woran, gewicht: String(z.g), alarm: z.alarm ? 'ja' : '',
+    hilfe: (z.hilfe || []).join('\n'), skill: z.skill || '', auto: z.auto || '',
+    reihenfolge: alt ? alt.reihenfolge : D.Fruehwarnzeichen.length
+  });
+}
+function fwEintrag(tag) { return D.FwEintraege.find(function (x) { return x.datum === tag; }); }
+function fwManuell(tag) { var e = fwEintrag(tag); return e ? ids(e.zeichen) : []; }
+/* Zeichen, die die App selbst aus Check-ins und Anspannung erkennt */
+function fwAuto(tag) {
+  var C = fwC(), aus = [];
+  C.liste.forEach(function (z) {
+    if (z.auto === 'schlaf') { var s = C.schlaf[tag]; if (s && s <= 2) aus.push(z.id); }
+    else if (z.auto === 'anspannung') { if (C.maxA[tag] > 6) aus.push(z.id); }
+  });
+  return aus;
+}
+function fwAmTag(tag) {
+  var m = fwManuell(tag), a = fwAuto(tag);
+  return m.concat(a.filter(function (id) { return m.indexOf(id) === -1; })).filter(function (id) { return !!fwZ(id); });
+}
+function fwHeute() { return fwAmTag(heute()); }
+function fwSetze(id, an) {
+  var l = fwManuell(heute()).filter(function (x) { return x !== id; });
+  if (an) l.push(id);
+  fwSetzeListe(l);
+}
+function fwSetzeListe(l) {
+  var tag = heute(), e = fwEintrag(tag);
+  sichere('FwEintraege', { id: e ? e.id : 'fw-' + tag, datum: tag, zeichen: l.join(',') });
+}
+function fwPunkte(l) { return l.reduce(function (s, id) { var z = fwZ(id); return s + (z ? z.g : 0); }, 0); }
+function fwTage() { return fwC().tage; }
+function fwBewertung(i, t) {
+  t = t || fwTage(); if (i == null) i = t.length - 1;
+  var sum = 0; for (var k = Math.max(0, i - FWG.tage + 1); k <= i; k++) sum += fwPunkte(t[k]);
+  var alarm = t[i].some(function (id) { var z = fwZ(id); return z && z.alarm; });
+  var serie = null;
+  if (i >= 2) t[i].forEach(function (id) { if (!serie && t[i - 1].indexOf(id) > -1 && t[i - 2].indexOf(id) > -1) serie = id; });
+  var s = alarm || sum >= FWG.handeln ? 'handeln' : (sum >= FWG.achtsam || serie) ? 'achtsam' : 'stabil';
+  return { sum: sum, s: s, alarm: alarm, serie: serie };
+}
+/* Reihenfolge innerhalb eines Bereichs ändern (dir: -1 nach oben, 1 nach unten) */
+function fwSchiebe(id, dir) {
+  var liste = fwListe().slice(), z = fwZ(id); if (!z) return null;
+  var imBereich = liste.filter(function (x) { return x.kat === z.kat; }), i = imBereich.indexOf(z), j = i + dir;
+  if (j < 0 || j >= imBereich.length) return null;
+  var a = liste.indexOf(z), b = liste.indexOf(imBereich[j]);
+  liste[a] = imBereich[j]; liste[b] = z;
+  liste.forEach(function (x, n) {
+    var r = D.Fruehwarnzeichen.find(function (y) { return y.id === x.id; });
+    if (r && +r.reihenfolge !== n) sichere('Fruehwarnzeichen', Object.assign({}, r, { reihenfolge: String(n) }));
+  });
+  return { platz: j + 1, von: imBereich.length };
+}
+function fwPlatz(id) {
+  var z = fwZ(id); if (!z) return null;
+  var imBereich = fwListe().filter(function (x) { return x.kat === z.kat; });
+  return { platz: imBereich.indexOf(z) + 1, von: imBereich.length };
+}
+var FW_STUFE = {
+  stabil: { t: 'Stabil', x: 'Deine Zeichen sind im üblichen Bereich. Den Check einfach beibehalten.', sym: '<path d="M4 12.5c2.5-3 5.5-3 8 0s5.5 3 8 0"/>' },
+  achtsam: { t: 'Achtsam', x: 'Es häufen sich Zeichen. Jetzt ist ein guter Moment, gegenzusteuern.', sym: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.1"/>' },
+  handeln: { t: 'Handeln', x: 'Viele Zeichen auf einmal. Nimm deinen Notfallplan zur Hand und hol dir Unterstützung.', sym: '<path d="M12 2.5l9.5 9.5-9.5 9.5L2.5 12z"/><path d="M12 8v5M12 16v.1"/>' }
+};
+function fwSym(s, gross) { return '<span class="fw-sym' + (gross ? ' gross' : '') + '" data-s="' + s + '"><svg viewBox="0 0 24 24">' + FW_STUFE[s].sym + '</svg></span>'; }
+function fwGewHtml(g) { return '<span class="fw-gew" data-g="' + g + '" aria-label="Gewicht ' + FW_GEW[g] + '"><i></i><i></i><i></i></span>'; }
+function fwSkillKnopf(z) {
+  var s = z.skill && skill(z.skill);
+  return s ? '<button class="fw-skill" data-act="skill" data-id="' + esc(s.id) + '"><i>★</i>Skill: ' + esc(s.titel) + '</button>' : '';
+}
+function fwStufen(s) {
+  return '<div class="fw-stufen">' + ['stabil', 'achtsam', 'handeln'].map(function (k) {
+    return '<span data-s="' + k + '" class="' + (k === s ? 'an' : '') + '"><svg viewBox="0 0 24 24">' + FW_STUFE[k].sym + '</svg>' + FW_STUFE[k].t + '</span>';
+  }).join('') + '</div>';
+}
+
+/* Kleine Karte auf der Startseite, direkt unter dem Anspannungs-Block */
+function fwStartKarte() {
+  if (!D.Fruehwarnzeichen.length) {
+    return '<button class="fw-karte" data-act="fwOeffne" data-id="zeichen" data-s="stabil">' + fwSym('stabil') +
+      '<span class="fw-txt"><span class="fw-tt">Frühwarnzeichen</span><span class="fw-st">Einrichten</span><small>Lege fest, woran du merkst, dass es dir schlechter geht</small></span>' +
+      svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+  }
+  var b = fwBewertung(), n = fwHeute().length;
+  var sub = b.serie ? '„' + fwZ(b.serie).name + '“ den 3. Tag in Folge' : n + ' Zeichen heute · ' + b.sum + ' Punkte in ' + FWG.tage + ' Tagen';
+  return '<button class="fw-karte" data-act="fwOeffne" data-id="stand" data-s="' + b.s + '">' + fwSym(b.s) +
+    '<span class="fw-txt"><span class="fw-tt">Frühwarnzeichen</span><span class="fw-st">' + FW_STUFE[b.s].t + '</span><small>' + esc(sub) + '</small></span>' +
+    svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+}
+
+var FW_ICON_WARN = '<svg viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.1"/></svg>';
+VIEWS.fwz = function (_, setTitel) {
+  setTitel('Frühwarnzeichen');
+  var tabs = [['stand', 'Stand'], ['check', 'Check'], ['zeichen', 'Meine Zeichen'], ['plan', 'Plan'], ['verlauf', 'Verlauf']];
+  var html = '<div class="fw-tabs" role="tablist">' + tabs.map(function (t) {
+    return '<button role="tab" data-act="fwTab" data-id="' + t[0] + '" class="' + (FW.tab === t[0] ? 'an' : '') + '">' + t[1] + '</button>';
+  }).join('') + '</div>';
+  return '<h2 style="margin-top:4px">Frühwarnzeichen</h2>' + html + FW_TAB[FW.tab]();
+};
+NACH.fwz = function () {
+  [['fwAchtsam', 'achtsam'], ['fwHandeln', 'handeln'], ['fwTage', 'tage']].forEach(function (p) {
+    var el = $('#' + p[0]); if (!el) return;
+    el.addEventListener('input', function () {
+      FWG[p[1]] = +el.value;
+      if (FWG.handeln <= FWG.achtsam) { if (p[1] === 'achtsam') FWG.handeln = FWG.achtsam + 1; else FWG.achtsam = FWG.handeln - 1; }
+      fwReglerAnzeige();
+    });
+    el.addEventListener('change', function () { fwEinstSpeichern(); var y = window.scrollY; render(true); window.scrollTo(0, y); });
+  });
+};
+/* Nur Zahlen und Gegen-Regler anpassen, das Element bleibt beim Ziehen erhalten */
+function fwReglerAnzeige() {
+  var a = $('#fwAchtsam'), h = $('#fwHandeln');
+  if (a && +a.value !== FWG.achtsam) a.value = FWG.achtsam;
+  if (h && +h.value !== FWG.handeln) h.value = FWG.handeln;
+  var t = function (id, txt) { var el = $('#' + id + 'W'); if (el) el.textContent = txt; };
+  t('fwAchtsam', FWG.achtsam + ' Punkten'); t('fwHandeln', FWG.handeln + ' Punkten'); t('fwTage', FWG.tage + ' Tage');
+}
+
+var FW_TAB = {};
+FW_TAB.stand = function () {
+  if (!D.Fruehwarnzeichen.length) return fwLeer();
+  var b = fwBewertung(), max = FWG.handeln + 6, l = fwHeute();
+  var html = '<div class="fw-ampel" data-s="' + b.s + '">' + fwSym(b.s, true) +
+    '<div><p class="fw-st">' + FW_STUFE[b.s].t + '</p><p>' + FW_STUFE[b.s].x + '</p></div>' + fwStufen(b.s) +
+    '<div class="fw-meter"><div class="fw-bar"><span style="width:' + Math.min(100, b.sum / max * 100) + '%"></span><b style="left:' + (FWG.achtsam / max * 100) + '%"></b><b style="left:' + (FWG.handeln / max * 100) + '%"></b></div>' +
+    '<div class="fw-leg"><span><b>' + b.sum + ' Punkte</b> in ' + FWG.tage + ' Tagen</span><span>Achtsam ab ' + FWG.achtsam + ', Handeln ab ' + FWG.handeln + '</span></div></div></div>';
+  if (b.alarm) html += '<div class="fw-hinweis handeln">' + FW_ICON_WARN + '<span>Heute ist ein Alarmzeichen dabei. Dafür springt die Stufe sofort auf Handeln.</span></div>';
+  if (b.serie) html += '<div class="fw-hinweis">' + FW_ICON_WARN + '<span><b>' + esc(fwZ(b.serie).name) + '</b> ist jetzt den 3. Tag in Folge da.</span></div>';
+  if (b.s === 'handeln') html += '<button class="fw-sos" data-act="fwTab" data-id="plan">Notfallplan öffnen</button>' + nordsternHalt();
+  else html += '<div class="fw-reihe"><button class="btn primaer" data-act="fwTab" data-id="plan">Was ich jetzt tue</button><button class="btn" data-act="fwTab" data-id="check">Check ändern</button></div>';
+  html += '<h3>Heute erkannt</h3><div class="liste">';
+  if (!l.length) html += '<p class="leise">Noch nichts. Im Check tippst du an, was heute da ist.</p>';
+  l.forEach(function (id) {
+    var z = fwZ(id);
+    html += '<div class="block" style="padding:14px 16px"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between"><span>' + esc(z.name) + (z.auto ? '<span class="fw-auto">automatisch</span>' : '') + '</span>' + fwGewHtml(z.g) + '</div>' +
+      '<div class="fw-hilfe"><b>Das hilft mir</b>' + esc(z.hilfe[0]) + '</div>' + fwSkillKnopf(z) + '</div>';
+  });
+  return html + '</div>';
+};
+FW_TAB.check = function () {
+  if (!D.Fruehwarnzeichen.length) return fwLeer();
+  var b = fwBewertung(), heuteL = fwHeute(), autoL = fwAuto(heute());
+  var html = '<p class="leise" style="margin-top:0">Tipp an, was heute da ist. Zeichen mit <span class="fw-auto" style="margin:0">automatisch</span> erkennt die App selbst aus deinen Check-ins und dem Anspannungsband.</p>';
+  FW_KAT.forEach(function (k) {
+    var zs = fwListe().filter(function (z) { return z.kat === k[0]; });
+    if (!zs.length) return;
+    html += '<div class="fw-block"><p class="fw-kat">' + k[1] + '</p>';
+    zs.forEach(function (z) {
+      var an = heuteL.indexOf(z.id) > -1, auto = autoL.indexOf(z.id) > -1;
+      html += '<button class="fw-z' + (an ? ' an' : '') + '" data-act="fwToggle" data-id="' + esc(z.id) + '" aria-pressed="' + an + '"><span class="fw-haken">' + svg('haken') + '</span>' +
+        '<span>' + esc(z.name) + '<span class="fw-meta">' + FW_GEW[z.g] + (z.auto ? (auto ? ' · heute automatisch erkannt' : ' · wird automatisch erkannt') : '') + (z.alarm ? ' · <span class="fw-alarm">Alarmzeichen</span>' : '') + '</span></span>' + fwGewHtml(z.g) + '</button>';
+      if (an) html += '<div class="fw-hilfe"><b>Das hilft mir</b><ul>' + z.hilfe.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + fwSkillKnopf(z) + '</div>';
+    });
+    html += '</div>';
+  });
+  html += '<div class="fw-summe" data-s="' + b.s + '">' + fwSym(b.s) + '<span>Heute <b>' + fwPunkte(fwHeute()) + '</b>, zusammen <b>' + b.sum + ' Punkte</b>: ' + FW_STUFE[b.s].t + '</span><button data-act="fwTab" data-id="stand">Fertig</button></div>';
+  return html;
+};
+FW_TAB.zeichen = function () {
+  var html = '<p class="leise" style="margin-top:0">Deine persönlichen Zeichen, mit Gewicht und dem, was dir hilft. Tipp eins an, um es zu bearbeiten.</p>' +
+    '<div class="kompass-akt"><button class="btn primaer" data-act="fwNeu">' + svg('plus') + 'Neues Zeichen</button><button class="btn" data-act="fwNeu" data-ki="1">✦ Mit KI formulieren</button></div>';
+  if (!D.Fruehwarnzeichen.length) html += leer('Noch keine Zeichen angelegt.', 'Starte mit einem Beispielpaket, beschreib der KI, was dir auffällt, oder übernimm unten einen Vorschlag.', '<button class="btn" data-act="fwStartpaket">Beispielzeichen übernehmen</button>');
+  FW_KAT.forEach(function (k) {
+    var zs = fwListe().filter(function (z) { return z.kat === k[0]; });
+    if (!zs.length) return;
+    html += '<h3>' + k[1] + '</h3>';
+    zs.forEach(function (z) {
+      var s = z.skill && skill(z.skill);
+      html += '<button class="fw-item" data-act="fwEdit" data-id="' + esc(z.id) + '"><span>' + esc(z.name) + (z.alarm ? ' <span class="fw-alarm" style="font-size:13px">· Alarm</span>' : '') + (z.auto ? '<span class="fw-auto">auto</span>' : '') + '</span>' + fwGewHtml(z.g) +
+        '<small>' + (z.woran ? 'Woran ich es merke: ' + esc(z.woran) + '<br>' : '') + 'Hilft: ' + esc(z.hilfe.join(' · ')) + (s ? ' · Skill: ' + esc(s.titel) : '') + '</small></button>';
+    });
+  });
+  html += '<h3>Vorschläge</h3><p class="leise" style="font-size:14px;margin-top:0">Antippen, dann formuliert die KI das Zeichen passend zu dir aus.</p><div class="chips">' + FW_VORSCHLAG.map(function (v, i) {
+    return '<button class="chip klein" data-act="fwVorschlag" data-id="' + i + '">' + svg('plus').replace('<svg', '<svg class="ic"') + esc(v) + '</button>';
+  }).join('') + '</div>';
+  return html;
+};
+FW_TAB.plan = function () {
+  var b = fwBewertung();
+  var li = function (a) { return a.map(function (s, i) { return '<li><span>' + (i + 1) + '</span><span>' + s + '</span></li>'; }).join(''); };
+  var html = '<p class="leise" style="margin-top:0">Was du tust, wenn die Stufe wechselt. Am besten in einer guten Phase ausfüllen, gern zusammen mit deiner Therapeutin oder deinem Therapeuten.</p>';
+  html += '<section class="fw-stufe' + (b.s === 'achtsam' ? ' aktiv' : '') + '" data-s="achtsam"><p class="fw-stufe-k">' + fwSym('achtsam') + 'Bei Achtsam' + (b.s === 'achtsam' ? '<span class="fw-jetzt">jetzt</span>' : '') + '</p><ol class="fw-schritte">' +
+    li(['Feste Aufsteh- und Essenszeiten', 'Jeden Tag 20 Minuten raus, am besten morgens', 'Eine Person einweihen: „Mir geht es gerade nicht so gut“', 'Termine reduzieren, nur das Nötigste', 'Die Hilfen und Skills zu meinen Zeichen nutzen']) + '</ol></section>';
+  html += '<section class="fw-stufe' + (b.s === 'handeln' ? ' aktiv' : '') + '" data-s="handeln"><p class="fw-stufe-k">' + fwSym('handeln') + 'Bei Handeln' + (b.s === 'handeln' ? '<span class="fw-jetzt">jetzt</span>' : '') + '</p><ol class="fw-schritte" style="margin-bottom:10px">' +
+    li(['Nicht allein bleiben: Vertrauensperson anrufen', 'Therapie-Praxis anrufen und Termin vorziehen', 'Im SOS einen Skill machen', 'Wenn ich mich nicht mehr sicher fühle: 112 oder Telefonseelsorge']) + '</ol>' + nordsternHalt() +
+    fwKontaktZeile('person', 'Vertrauensperson') + fwKontaktZeile('praxis', 'Therapie-Praxis') +
+    '<div class="fw-kontakt"><span>Telefonseelsorge</span><small>kostenlos, rund um die Uhr</small><b>0800 111 0 111</b></div>' +
+    '<div class="fw-kontakt"><span>Telefonseelsorge</span><small>zweite Nummer</small><b>0800 111 0 222</b></div>' +
+    '<div class="fw-kontakt"><span>Notruf</span><small>bei akuter Gefahr</small><b>112</b></div>' +
+    '<button class="fw-sos" data-act="fwSos">Zum SOS</button></section>';
+  html += '<h3>Meine Grenzen</h3><div class="fw-regler">' +
+    '<div><label for="fwAchtsam"><span>Achtsam ab</span><b id="fwAchtsamW">' + FWG.achtsam + ' Punkten</b></label><input id="fwAchtsam" type="range" min="4" max="30" value="' + FWG.achtsam + '"></div>' +
+    '<div><label for="fwHandeln"><span>Handeln ab</span><b id="fwHandelnW">' + FWG.handeln + ' Punkten</b></label><input id="fwHandeln" type="range" min="6" max="40" value="' + FWG.handeln + '"></div>' +
+    '<div><label for="fwTage"><span>Zeitraum</span><b id="fwTageW">' + FWG.tage + ' Tage</b></label><input id="fwTage" type="range" min="1" max="7" value="' + FWG.tage + '"></div>' +
+    '<p class="leise" style="margin:0;font-size:13.5px">Leicht zählt 1, mittel 2, stark 3 Punkte. Ein Zeichen 3 Tage in Folge macht mindestens Achtsam, ein Alarmzeichen sofort Handeln.</p></div>';
+  return html;
+};
+FW_TAB.verlauf = function () {
+  var t = fwTage(), n = t.length, W = 340, H = 190, L = 26, R = 6, T = 10, B = 30, cw = (W - L - R) / n, maxP = 14;
+  var y = function (v) { return T + (H - T - B) * (1 - v / maxP); };
+  var col = { stabil: 'var(--fw-stabil)', achtsam: 'var(--fw-achtsam)', handeln: 'var(--fw-handeln)' };
+  var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Punkte pro Tag, letzte 14 Tage">';
+  [0, 4, 8, 12].forEach(function (v) { s += '<line class="g" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + v + '</text>'; });
+  t.forEach(function (tag, i) {
+    var p = fwPunkte(tag), b = fwBewertung(i, t), x = L + i * cw + cw * .18, w = cw * .64;
+    if (p > 0) s += '<rect x="' + x + '" y="' + y(p) + '" width="' + w + '" height="' + (y(0) - y(p)) + '" rx="3" style="fill:' + col[b.s] + ';stroke:none"/>';
+    else s += '<circle cx="' + (x + w / 2) + '" cy="' + (y(0) - 2) + '" r="1.6" style="fill:var(--muted);stroke:none"/>';
+    if (b.s === 'handeln' && p > 0) s += '<text x="' + (x + w / 2) + '" y="' + (y(p) - 4) + '" text-anchor="middle" style="fill:var(--fw-handeln)">◆</text>';
+    if (b.s === 'achtsam' && p > 0) s += '<text x="' + (x + w / 2) + '" y="' + (y(p) - 4) + '" text-anchor="middle" style="fill:var(--fw-achtsam)">▲</text>';
+    if (i % 2 === 1 || i === n - 1) { var d = new Date(); d.setDate(d.getDate() - (n - 1 - i)); s += '<text x="' + (x + w / 2) + '" y="' + (H - 12) + '" text-anchor="middle">' + (i === n - 1 ? 'heute' : d.getDate() + '.') + '</text>'; }
+  });
+  s += '</svg>';
+  if (!D.Fruehwarnzeichen.length) return fwLeer();
+  var html = '<p class="leise" style="margin-top:0">Die letzten 14 Tage. Jeder Balken zeigt die Punkte eines Tages, Farbe und Zeichen die Stufe.</p>';
+  html += '<div class="fw-chart">' + s + '<div class="fw-leg2"><span><i class="fw-dot stabil"></i>Stabil</span><span style="color:var(--fw-achtsam)">▲ <span style="color:var(--muted)">Achtsam</span></span><span style="color:var(--fw-handeln)">◆ <span style="color:var(--muted)">Handeln</span></span></div></div>';
+  var c = {}; t.forEach(function (d) { d.forEach(function (id) { c[id] = (c[id] || 0) + 1; }); });
+  var oben = Object.keys(c).filter(function (id) { return fwZ(id); });
+  if (!oben.length) return html + '<p class="leise">In den letzten 14 Tagen war kein Zeichen da.</p>';
+  html += '<h3>Am häufigsten</h3><div class="fw-haeufig">' + oben.sort(function (a, b) { return c[b] - c[a]; }).slice(0, 5).map(function (id) {
+    return '<span>' + esc(fwZ(id).name) + '</span><span class="n">' + c[id] + ' von ' + n + ' Tagen</span><span class="b"><i style="width:' + (c[id] / n * 100) + '%"></i></span>';
+  }).join('') + '</div>';
+  html += '<div class="aktionen" style="margin-top:14px"><button class="btn voll" data-act="fwKopieren">Für die Therapie kopieren</button></div>';
+  return html;
+};
+
+AKT.fwOeffne = function (d) { FW.tab = d.id || 'stand'; geh('fwz'); };
+AKT.fwTab = function (d) { FW.tab = d.id; render(); };
+AKT.fwToggle = function (d) {
+  var z = fwZ(d.id); if (!z) return;
+  if (fwAuto(heute()).indexOf(z.id) > -1 && fwManuell(heute()).indexOf(z.id) === -1) { toast('Das erkennt die App heute aus deinen Einträgen.'); return; }
+  fwSetze(z.id, fwManuell(heute()).indexOf(z.id) === -1); render(true);
+};
+AKT.fwSos = function () { geh('sos'); };
+/* Abend-Check-in: Auswahl erst merken, gespeichert wird mit „Speichern“ */
+var FW_CI = null;
+AKT.fwCi = function (d, el) {
+  if (!FW_CI) return;
+  var i = FW_CI.l.indexOf(d.id);
+  if (i === -1 && fwAuto(heute()).indexOf(d.id) > -1) { toast('Das erkennt die App heute aus deinen Einträgen.'); return; }
+  if (i > -1) FW_CI.l.splice(i, 1); else FW_CI.l.push(d.id);
+  el.classList.toggle('an', i === -1);
+};
+function fwCiSpeichern() {
+  if (!FW_CI || FW_CI.tag !== heute()) { FW_CI = null; return; }
+  var neu = FW_CI.l.slice().sort().join(','), alt = fwManuell(heute()).slice().sort().join(',');
+  if (neu !== alt) fwSetzeListe(FW_CI.l);
+  FW_CI = null;
+}
+
+/* Bausteine, die direkt in Startseite, Abend-Check-in und Rückblick aufgerufen werden */
+function fwCheckinTeil() {
+  if (!D.Fruehwarnzeichen.length) return '';
+  if (!FW_CI || FW_CI.tag !== heute()) FW_CI = { tag: heute(), l: fwManuell(heute()).slice() };
+  var auto = fwAuto(heute()), an = function (id) { return FW_CI.l.indexOf(id) > -1 || auto.indexOf(id) > -1; };
+  return '<div class="feld fw-ci"><span class="label">Frühwarnzeichen heute <span class="fw-auto">neu</span></span><div class="chips">' +
+    fwListe().map(function (z) { return '<button type="button" class="chip klein' + (an(z.id) ? ' an' : '') + '" data-act="fwCi" data-id="' + esc(z.id) + '">' + esc(z.name) + '</button>'; }).join('') +
+    '</div><p class="leise" style="font-size:13px;margin:8px 0 0">Ausführlicher unter Frühwarnzeichen im Menü.</p></div>';
+}
+function fwRueckblickKarte() {
+  var b = fwBewertung();
+  return '<button class="fw-karte" data-act="fwOeffne" data-id="verlauf" data-s="' + b.s + '" style="margin:0 0 14px">' + fwSym(b.s) +
+    '<span class="fw-txt"><span class="fw-tt">Frühwarnzeichen</span><span class="fw-st">Verlauf, 14 Tage</span><small>Welche Zeichen wie oft da waren</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+}
+
+function fwLeer() {
+  return leer('Noch keine Frühwarnzeichen.', 'Lege fest, woran du früh merkst, dass es dir schlechter geht. Du kannst mit Beispielen starten und sie anpassen.',
+    '<div class="aktionen"><button class="btn primaer" data-act="fwStartpaket">Beispielzeichen übernehmen</button><button class="btn" data-act="fwTab" data-id="zeichen">Selbst anlegen</button></div>');
+}
+AKT.fwStartpaket = function () {
+  FW_START.forEach(function (z, i) {
+    if (D.Fruehwarnzeichen.some(function (x) { return x.id === z.id; })) return;
+    if (z.skill && !skill(z.skill)) z = Object.assign({}, z, { skill: '' });
+    sichere('Fruehwarnzeichen', { id: z.id, name: z.name, kategorie: z.kategorie, woran: z.woran, gewicht: String(z.gewicht), alarm: z.alarm ? 'ja' : '', hilfe: z.hilfe.join('\n'), skill: z.skill || '', auto: z.auto || '', reihenfolge: i });
+  });
+  FW.tab = 'zeichen'; render(true); toast('Beispielzeichen übernommen. Pass sie in Ruhe an dich an.');
+};
+function fwKontaktZeile(k, titel) {
+  var name = FW_KONTAKT[k], nr = FW_KONTAKT[k + 'Nr'];
+  return '<button type="button" class="fw-kontakt" data-act="fwKontakt" data-id="' + k + '"><span>' + titel + '</span><small>' + (name ? esc(name) : 'Antippen zum Eintragen') + '</small><b>' + (nr ? esc(nr) : 'eintragen') + '</b></button>';
+}
+AKT.fwKontakt = function (d) {
+  var k = d.id, titel = k === 'person' ? 'Vertrauensperson' : 'Therapie-Praxis';
+  oeffneModal('<h2>' + titel + '</h2><div class="feld"><label for="mFwName">Name</label><input type="text" id="mFwName" maxlength="80" value="' + esc(FW_KONTAKT[k]) + '"></div>' +
+    '<div class="feld"><label for="mFwNr">Telefonnummer</label><input type="tel" id="mFwNr" maxlength="40" value="' + esc(FW_KONTAKT[k + 'Nr']) + '"></div>' +
+    '<p class="leise klein">Steht in deinem Google Sheet im Blatt „FwEinstellungen“.</p><div class="aktionen"><button class="btn primaer" id="mFwOk">' + svg('haken') + 'Speichern</button><button class="btn ghost" data-schliessen>Abbrechen</button></div>', function (box) {
+    $('#mFwOk', box).onclick = function () {
+      FW_KONTAKT[k] = $('#mFwName', box).value.trim(); FW_KONTAKT[k + 'Nr'] = $('#mFwNr', box).value.trim();
+      fwEinstSpeichern(); schliesseModal(); render(true);
+    };
+  });
+};
+AKT.fwKopieren = function () {
+  var tage = letzteTage(14), t = fwTage(), zeilen = ['Frühwarnzeichen, ' + datum(tage[0]) + ' bis ' + datum(tage[13])];
+  tage.forEach(function (tag, i) {
+    var b = fwBewertung(i, t);
+    zeilen.push(new Date(tag + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' }) + ': ' +
+      (t[i].length ? t[i].map(function (id) { return fwZ(id).name; }).join(', ') : 'keine') + ' (' + FW_STUFE[b.s].t + ')');
+  });
+  var text = zeilen.join('\n');
+  try {
+    navigator.clipboard.writeText(text).then(function () { toast('Kopiert. Du kannst es jetzt in eine Notiz oder Mail einfügen.'); }, function () { toast('Kopieren ging nicht.'); });
+  } catch (e) { toast('Kopieren ging nicht.'); }
+};
+/* Der Auftrag an die KI (in der echten App über holeKI(), wie bei den Regeln) */
+function fwKiPrompt(text, bisher) {
+  return 'Du hilfst in der deutschsprachigen App „Lebenskompass“, persönliche Frühwarnzeichen zu formulieren. Ein Frühwarnzeichen ist eine konkrete, beobachtbare Veränderung, an der die Person früh merkt, dass es ihr schlechter geht. Schreibe in der Ich-Form, kurz, konkret und ohne Fachjargon. Stelle keine Diagnosen.\n' + KI_SICHER +
+    '\n\nDie Person schreibt: """' + text + '"""' +
+    (bisher ? '\nBisheriger Entwurf: ' + JSON.stringify(bisher) : '') +
+    '\nBereiche: ' + FW_KAT.map(function (k) { return k[1]; }).join(', ') +
+    '\nVorhandene Zeichen (nicht doppeln): ' + fwListe().map(function (z) { return z.name; }).join('; ') +
+    '\nNotfall-Skills: ' + D.Skills.map(function (s) { return s.id + ' ' + s.titel; }).join('; ') +
+    '\nBeispiel eines guten Zeichens: Name „Ziehe mich zurück“, Woran ich es merke „Ich sage Treffen ab oder antworte nicht mehr auf Nachrichten.“, Hilfe „Eine Person anschreiben, auch nur kurz“.' +
+    '\n\nAntworte nur mit JSON: {"name": "max. 6 Wörter, Ich-Form", "bereich": "einer der Bereiche", "woran": "1 Satz, beobachtbar, mit Zeit oder Häufigkeit", "gewicht": 1-3, "alarm": true nur bei Hoffnungslosigkeit, Suizidgedanken oder Selbstverletzung, "hilfe": ["2-3 kleine, sofort machbare Schritte"], "skill": "eine passende Skill-id oder leer"}';
+}
+var FW_EDIT = null;
+AKT.fwEdit = function (d) { var z = fwZ(d.id); if (!z) return; FW_EDIT = JSON.parse(JSON.stringify(z)); FW_EDIT.neu = false; geh('fwEdit'); };
+AKT.fwNeu = function (d) {
+  FW_EDIT = { id: uuid(), kat: 'verhalten', name: d.name || '', woran: '', g: 2, alarm: false, hilfe: [], skill: '', neu: true, ki: d.ki === '1' };
+  geh('fwEdit');
+};
+AKT.fwVorschlag = function (d) {
+  var name = FW_VORSCHLAG[+d.id];
+  AKT.fwNeu({ name: name, ki: '1' });
+  FW_EDIT.vorschlag = name;
+  var t = $('#fwKiText'); if (t) t.value = name;
+};
+
+function fwFormLesen() {
+  var e = FW_EDIT;
+  e.name = $('#fwName').value.trim();
+  e.kat = $('#fwKat').value;
+  e.woran = $('#fwWoran').value.trim();
+  e.hilfe = $('#fwHilfe').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+  e.alarm = $('#fwAlarm').checked;
+}
+VIEWS.fwEdit = function (_, setTitel) {
+  var e = FW_EDIT || {};
+  setTitel(e.neu ? 'Neues Frühwarnzeichen' : 'Zeichen bearbeiten');
+  var skills = D.Skills.filter(function (s) { return s.titel; }).slice(0, 14);
+  var html = kiBox('fwKiText', e.neu ? 'Mit KI formulieren' : 'Mit KI überarbeiten',
+    e.neu ? 'Beschreib in eigenen Worten, was dir auffällt, z. B. „Wenn es mir schlechter geht, koche ich nicht mehr und esse nur noch Chips.“' : 'Optional: Was soll anders werden? Oder einfach antippen, dann bringt die KI das Zeichen in die einheitliche Form.',
+    e.neu ? 'Zeichen formulieren' : 'Einheitlich formulieren', 'fwKi');
+  html += '<div class="feld"><label for="fwName">Name</label><input type="text" id="fwName" maxlength="60" placeholder="Kurz, in Ich-Form, z. B. „Ziehe mich zurück“" value="' + esc(e.name) + '"></div>' +
+    '<div class="feld"><label for="fwKat">Bereich</label><select id="fwKat">' + FW_KAT.map(function (k) { return '<option value="' + k[0] + '"' + (e.kat === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="feld"><label for="fwWoran">Woran ich es merke</label><textarea id="fwWoran" rows="2" placeholder="Beobachtbar, mit Zeit oder Häufigkeit">' + esc(e.woran) + '</textarea></div>' +
+    '<p class="fw-lbl">Wie stark zählt das Zeichen?</p><div class="fw-seg" id="fwSeg">' + [1, 2, 3].map(function (g) { return '<button type="button" data-act="fwGew" data-id="' + g + '" class="' + (e.g === g ? 'an' : '') + '">' + FW_GEW[g] + '</button>'; }).join('') + '</div>' +
+    '<p class="fw-lbl">Alarmzeichen</p><label class="fw-schalter" for="fwAlarm"><span>Springt sofort auf Handeln, wenn es da ist</span><input id="fwAlarm" type="checkbox"' + (e.alarm ? ' checked' : '') + '></label>' +
+    '<p class="fw-lbl">Automatisch erkennen</p><div class="fw-seg" id="fwAutoSeg">' + [['', 'aus'], ['schlaf', 'Schlaf'], ['anspannung', 'Anspannung']].map(function (a) { return '<button type="button" data-act="fwAutoWahl" data-id="' + a[0] + '" class="' + ((e.auto || '') === a[0] ? 'an' : '') + '">' + a[1] + '</button>'; }).join('') + '</div>' +
+    '<p class="leise klein" style="margin:6px 0 0">Schlaf: wenn du im Morgen-Check-in „schlecht“ oder schlechter angibst. Anspannung: wenn du an dem Tag über 6 einträgst.</p>' +
+    '<div class="feld" style="margin-top:14px"><label for="fwHilfe">Das hilft mir (ein Schritt pro Zeile)</label><textarea id="fwHilfe" rows="3">' + esc((e.hilfe || []).join('\n')) + '</textarea></div>' +
+    '<p class="fw-lbl">Passender Skill aus deiner Sammlung</p><div class="chips" id="fwSkills">' + skills.map(function (s) {
+      return '<button type="button" class="chip klein' + (e.skill === s.id ? ' an' : '') + '" data-act="fwSkillWahl" data-id="' + esc(s.id) + '">' + esc(s.titel) + '</button>';
+    }).join('') + '</div>' +
+    fwReiheHtml(e) +
+    '<div class="aktionen" style="margin-top:18px"><button class="btn primaer" data-act="fwSpeichern">' + svg('haken') + 'Speichern</button><button class="btn ghost" data-act="zurueck">Abbrechen</button></div>' +
+    (e.neu ? '' : '<button class="btn ghost voll" data-act="fwLoeschen" style="margin-top:10px;color:var(--sos)">' + svg('muell') + 'Zeichen löschen</button>');
+  return html;
+};
+NACH.fwEdit = function () { if (FW_EDIT && FW_EDIT.ki) { var t = $('#fwKiText'); if (t) t.focus(); } };
+AKT.fwGew = function (d, el) { FW_EDIT.g = +d.id; $$('#fwSeg button').forEach(function (b) { b.classList.toggle('an', b === el); }); };
+AKT.fwSkillWahl = function (d) { FW_EDIT.skill = FW_EDIT.skill === d.id ? '' : d.id; $$('#fwSkills .chip').forEach(function (b) { b.classList.toggle('an', b.dataset.id === FW_EDIT.skill); }); };
+AKT.fwSpeichern = function () {
+  fwFormLesen();
+  if (!FW_EDIT.name) { $('#fwName').focus(); toast('Gib dem Zeichen einen Namen.'); return; }
+  var neu = FW_EDIT.neu, z = FW_EDIT;
+  if (z.vorschlag) { var vi = FW_VORSCHLAG.indexOf(z.vorschlag); if (vi > -1) FW_VORSCHLAG.splice(vi, 1); }
+  delete z.neu; delete z.ki; delete z.vorschlag;
+  fwSpeichereZ(z);
+  FW_EDIT = null; FW.tab = 'zeichen';
+  zurueck(); toast(neu ? '„' + z.name + '“ ist jetzt in deiner Liste.' : 'Gespeichert.');
+};
+AKT.fwLoeschen = function () {
+  var z = FW_EDIT; if (!z) return;
+  bestaetige('„' + z.name + '“ löschen?', 'Löschen').then(function (ja) {
+    if (!ja) return;
+    entferne('Fruehwarnzeichen', z.id);
+    FW_EDIT = null; FW.tab = 'zeichen';
+    zurueck(); toast('„' + z.name + '“ wurde gelöscht.');
+  });
+};
+/* KI-Antwort auf erlaubte Werte begrenzen */
+function fwKiPruefen(r) {
+  r = r && typeof r === 'object' ? r : {};
+  var text = function (x, n) { return typeof x === 'string' ? x.trim().slice(0, n) : ''; };
+  var g = Math.round(+r.gewicht);
+  return {
+    name: text(r.name, 60),
+    bereich: FW_KAT.some(function (k) { return k[1] === r.bereich; }) ? r.bereich : '',
+    woran: text(r.woran, 240),
+    gewicht: g >= 1 && g <= 3 ? g : 0,
+    alarm: r.alarm === true,
+    hilfe: (Array.isArray(r.hilfe) ? r.hilfe : []).map(function (x) { return text(x, 160); }).filter(Boolean).slice(0, 4),
+    skill: typeof r.skill === 'string' && skill(r.skill) ? r.skill : ''
+  };
+}
+AKT.fwKi = function () {
+  var txt = $('#fwKiText').value.trim(), aus = $('#fwKiTextAus');
+  fwFormLesen();
+  if (!txt && FW_EDIT.neu) { $('#fwKiText').focus(); return; }
+  var bisher = FW_EDIT.name ? { name: FW_EDIT.name, woran: FW_EDIT.woran, hilfe: FW_EDIT.hilfe } : null;
+  var prompt = fwKiPrompt(txt || 'Bitte bring dieses Zeichen in die einheitliche Form.', bisher);
+  kiLaeuft('fwKiText', true); aus.innerHTML = '';
+  holeKI().then(function (ki) {
+    if (!ki) throw { code: 'not_granted' };
+    return ki.json(prompt, { modelTier: 'default' });
+  }).then(function (r) {
+    kiLaeuft('fwKiText', false);
+    if (!FW_EDIT.neu && !txt) { r.name = FW_EDIT.name; r.bereich = (FW_KAT.find(function (k) { return k[0] === FW_EDIT.kat; }) || [])[1]; }
+    $('#fwName').value = r.name || '';
+    var k = FW_KAT.find(function (x) { return x[1] === r.bereich; }); if (k) $('#fwKat').value = k[0];
+    $('#fwWoran').value = r.woran || '';
+    $('#fwHilfe').value = (r.hilfe || []).join('\n');
+    if (r.gewicht) { FW_EDIT.g = +r.gewicht; $$('#fwSeg button').forEach(function (b) { b.classList.toggle('an', +b.dataset.id === FW_EDIT.g); }); }
+    $('#fwAlarm').checked = !!r.alarm;
+    FW_EDIT.skill = r.skill || ''; $$('#fwSkills .chip').forEach(function (b) { b.classList.toggle('an', b.dataset.id === FW_EDIT.skill); });
+    aus.innerHTML = '<p class="kiantwort">Ich habe das Formular unten ausgefüllt. Ändere alles, was nicht nach dir klingt.</p>';
+    $('#fwName').closest('.feld').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }).catch(function (e) { kiLaeuft('fwKiText', false); if (aus) aus.innerHTML = '<p class="leise">' + esc(kiFehler(e)) + '</p>'; });
+};
+
+AKT.fwAutoWahl = function (d, el) { FW_EDIT.auto = d.id; $$('#fwAutoSeg button').forEach(function (b) { b.classList.toggle('an', b === el); }); };
+function fwReiheHtml(e) {
+  var p = !e.neu && fwPlatz(e.id); if (!p || p.von < 2) return '';
+  var kat = (FW_KAT.find(function (k) { return k[0] === fwZ(e.id).kat; }) || ['', ''])[1];
+  return '<p class="fw-lbl">Reihenfolge</p><div class="fw-reihe"><span>Platz <b id="fwPlatz">' + p.platz + '</b> von ' + p.von + ' in ' + esc(kat) + '</span>' +
+    '<button type="button" class="btn klein" data-act="fwSchieben" data-id="-1" aria-label="Nach oben"' + (p.platz === 1 ? ' disabled' : '') + '>▲</button>' +
+    '<button type="button" class="btn klein" data-act="fwSchieben" data-id="1" aria-label="Nach unten"' + (p.platz === p.von ? ' disabled' : '') + '>▼</button></div>';
+}
+AKT.fwSchieben = function (d) {
+  if (!FW_EDIT) return;
+  fwFormLesen();
+  var r = fwSchiebe(FW_EDIT.id, +d.id); if (!r) return;
+  var y = window.scrollY; render(true); window.scrollTo(0, y);
+};
+
+/* =========================================================
+   Nordstern
+   ========================================================= */
+/* Vierzackiger Stern mit weichem Schein; atmet langsam, bei „Handeln“ steht er still */
+function nordstern(cls) {
+  return '<svg class="nordstern' + (cls ? ' ' + cls : '') + '" viewBox="0 0 100 100" aria-hidden="true">' +
+    '<circle cx="50" cy="50" r="30" class="ns-schein"/>' +
+    '<path class="ns-strahl" d="M50 4L54 46L96 50L54 54L50 96L46 54L4 50L46 46Z"/>' +
+    '<path class="ns-kern" d="M50 30L52.5 47.5L70 50L52.5 52.5L50 70L47.5 52.5L30 50L47.5 47.5Z"/>' +
+    '<circle cx="50" cy="50" r="3.2" class="ns-mitte"/></svg>';
+}
+function nordsternStufe() {
+  document.documentElement.classList.toggle('ns-still', fwBewertung().s === 'handeln');
+}
+
+/* Kopfbild der Werte-Seite */
+function nordsternKopf() {
+  return '<div class="ns-kopf">' + nordstern('gross') +
+    '<p class="ns-unter">Dein Nordstern sind deine Werte: die Richtung, in die dein Kompass zeigt. Regeln sind die Wege dorthin.</p></div>';
+}
+/* Bei „Handeln“: der Nordstern als fester Punkt im Plan */
+function nordsternHalt() {
+  var w = D.Werte.slice().sort(nachReihe).slice(0, 3);
+  return '<button class="ns-halt" data-act="nav" data-id="werte">' + nordstern() +
+    '<span><b>Dein Nordstern</b><small>' + (w.length ? esc(w.map(function (x) { return x.name; }).join(' · ')) : 'Was dir wirklich wichtig ist') + '</small></span>' +
+    svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+}
+
+/* ---------- Dankbarkeit als Sternbild im Hintergrund ---------- */
+/* Feste Sternpositionen im Himmel; jeder Dankbarkeits-Moment der letzten 7 Tage lässt einen davon heller leuchten */
+var HIMMEL = [[8,14],[18,32],[27,9],[36,24],[44,6],[57,18],[66,8],[74,28],[83,12],[92,22],[12,46],[24,58],[88,44],[94,62],[6,72],[16,86],[30,94],[48,88],[62,96],[78,84],[90,92],[70,62],[40,70],[55,40]];
+function hashZahl(s) { var h = 0; s = String(s); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function dankLetzteWoche() {
+  var set = {}; letzteTage(7).forEach(function (t) { set[t] = 1; });
+  return D.Dankbarkeit.filter(function (x) { return x.text && set[x.datum]; });
+}
+function sternHimmel() {
+  var box = $('#sternbildHimmel'); if (!box) return;
+  var hell = HIMMEL.map(function () { return 0; });
+  dankLetzteWoche().forEach(function (x) { hell[hashZahl(x.id || x.text) % HIMMEL.length]++; });
+  var html = HIMMEL.map(function (p, i) {
+    var n = Math.min(hell[i], 3);
+    return '<i class="hs' + (n ? ' an' + n : '') + '" style="left:' + p[0] + '%;top:' + p[1] + '%"></i>';
+  }).join('');
+  if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
+}
+
+/* ---------- Sternbild der Woche im Rückblick ---------- */
+function sternbildWoche(w) {
+  if (!w.dank.length) return '';
+  var tage = letzteTage(7), W = 320, H = 150, P = 18;
+  var punkte = w.dank.slice().sort(function (a, b) { return a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : (a.nr || 0) - (b.nr || 0); }).map(function (x) {
+    var ti = tage.indexOf(x.datum), h = hashZahl((x.id || '') + x.text), m = Math.imul(h, 2654435761) >>> 0;
+    return { x: P + (W - 2 * P) * (ti + .2 + (h % 60) / 100) / 7, y: P + (H - 2 * P) * (m % 1000) / 1000, t: x.text };
+  });
+  var linien = '';
+  for (var i = 1; i < punkte.length; i++) linien += '<line x1="' + punkte[i - 1].x.toFixed(1) + '" y1="' + punkte[i - 1].y.toFixed(1) + '" x2="' + punkte[i].x.toFixed(1) + '" y2="' + punkte[i].y.toFixed(1) + '"/>';
+  var sterne = punkte.map(function (p, i) {
+    var r = i === punkte.length - 1 ? 3.4 : 2.4;
+    return '<g><title>' + esc(p.t) + '</title><circle class="sb-schein" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (r * 3) + '"/><circle class="sb-stern" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + r + '"/></g>';
+  }).join('');
+  var achse = tage.map(function (t, i) { var d = new Date(t + 'T12:00'); return '<text x="' + (P + (W - 2 * P) * (i + .5) / 7).toFixed(1) + '" y="' + (H - 2) + '">' + ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()] + '</text>'; }).join('');
+  var nTage = {}; w.dank.forEach(function (x) { nTage[x.datum] = 1; });
+  return '<h3>Sternbild deiner Woche</h3><div class="block sternbild">' +
+    '<svg viewBox="0 0 ' + W + ' ' + (H + 12) + '" role="img" aria-label="' + w.dank.length + ' dankbare Momente als Sternbild"><g class="sb-linien">' + linien + '</g>' + sterne + '<g class="sb-achse">' + achse + '</g></svg>' +
+    '<p class="leise klein" style="margin:8px 0 0">' + w.dank.length + ' dankbare Momente an ' + Object.keys(nTage).length + ' Tagen. Jeder Stern ist einer davon, verbunden in der Reihenfolge, in der du sie notiert hast.</p></div>';
+}
+
+/* =========================================================
+   flüssigere Kompass-Animation
+   Zeiger als eigene Ebene (läuft auf der Grafikkarte), Bogen über
+   stroke-dashoffset statt neuem Pfad, kein Schatten-Filter auf der Grafik.
+   ========================================================= */
+function roseAnspannung(v) {
+  fwLetzterWert = v;
+  var P = function (r, grad) { var a = grad * Math.PI / 180; return (100 + r * Math.sin(a)).toFixed(2) + ' ' + (100 - r * Math.cos(a)).toFixed(2); };
+  var t = '';
+  for (var i = 0; i <= 50; i++) {
+    var g = -135 + i * 5.4, haupt = i % 5 === 0;
+    t += '<path class="' + (haupt ? 'tick-h' : 'tick') + '" d="M' + P(88, g) + 'L' + P(88 - (haupt ? 7 : 3), g) + '"/>';
+  }
+  var zahlen = '';
+  for (var z = 0; z <= 10; z++) { var xy = P(73, anspWinkel(z)).split(' '); zahlen += '<text class="grad' + (z === v ? ' an' : '') + '" x="' + xy[0] + '" y="' + xy[1] + '" dy="3">' + z + '</text>'; }
+  var spitze = function (g, L, w, cls) {
+    return '<path class="' + cls + '-l" d="M100 100L' + P(L, g) + 'L' + P(w, g - 45) + 'Z"/>' +
+           '<path class="' + cls + '-d" d="M100 100L' + P(L, g) + 'L' + P(w, g + 45) + 'Z"/>';
+  };
+  var stern = '';
+  [45, 135, 225, 315].forEach(function (g) { stern += spitze(g, 34, 8, 'neben'); });
+  [90, 180, 270].forEach(function (g) { stern += spitze(g, 46, 10, 'haupt'); });
+  stern += spitze(0, 62, 10, 'nord');
+  var bogen = 'M' + P(82, -135) + 'A82 82 0 1 1 ' + P(82, 135);
+  return '<div class="rose-w" id="anspRose" role="img" aria-label="Anspannung ' + v + ' von 10">' +
+    '<svg class="rose ansp" viewBox="0 0 200 200" aria-hidden="true"><defs>' +
+    '<linearGradient id="messing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E2B3"/><stop offset=".45" stop-color="#C9A45C"/><stop offset="1" stop-color="#7A5A24"/></linearGradient>' +
+    '<linearGradient id="messingD" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B89049"/><stop offset="1" stop-color="#5E4318"/></linearGradient>' +
+    '<radialGradient id="glanz" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="var(--glow)"/><stop offset="1" stop-color="var(--glow)" stop-opacity="0"/></radialGradient>' +
+    '</defs>' +
+    '<circle cx="100" cy="100" r="99" fill="url(#glanz)" stroke="none"/>' +
+    '<circle class="bezel" cx="100" cy="100" r="96"/><circle class="bezel-2" cx="100" cy="100" r="92"/>' +
+    '<path class="skala-bg" d="' + bogen + '"/>' +
+    '<path class="skala-an" id="anspBogen" pathLength="100" d="' + bogen + '" stroke="' + ANSP_FARBE[v] + '" style="stroke-dashoffset:' + (100 - v * 10) + '"/>' +
+    t + zahlen + '<circle class="ring-i" cx="100" cy="100" r="56"/></svg>' +
+    '<div class="rose-zeiger" id="anspZeiger" style="transform:rotate(' + anspWinkel(v) + 'deg)"><div class="rose-pendel">' +
+    '<svg class="rose ansp rose-nadel" viewBox="0 0 200 200" aria-hidden="true"><g class="stern">' + stern + '</g></svg></div></div>' +
+    '<svg class="rose ansp rose-nadel" viewBox="0 0 200 200" aria-hidden="true"><circle class="mitte" cx="100" cy="100" r="5.5"/><circle class="mitte-p" cx="100" cy="100" r="1.8"/></svg>' +
+    '</div>';
+}
+var fwLetzterWert = null;
+function anspSetze(v) {
+  if (v === fwLetzterWert) return;
+  fwLetzterWert = v; TRACK.v = v;
+  var z = $('#anspZeiger'); if (z) z.style.transform = 'rotate(' + anspWinkel(v) + 'deg)';
+  var b = $('#anspBogen'); if (b) { b.style.strokeDashoffset = 100 - v * 10; b.setAttribute('stroke', ANSP_FARBE[v]); }
+  $$('.rose.ansp .grad').forEach(function (t) { t.classList.toggle('an', +t.textContent === v); });
+  var w = $('#anspWert'); if (w) { w.textContent = v; w.style.color = ANSP_FARBE[v]; }
+  var wo = $('#anspWort'); if (wo) wo.textContent = WORT[v];
+}
+/* Beim Ziehen folgt die Nadel direkt, beim Loslassen federt sie aus */
+function anspZiehen() {
+  var r = $('#anspRegler'), rose = $('#anspRose');
+  if (!r || !rose) return;
+  var an = function () { rose.classList.add('zieht'); }, aus = function () { rose.classList.remove('zieht'); };
+  r.addEventListener('pointerdown', an); r.addEventListener('touchstart', an, { passive: true });
+  r.addEventListener('change', aus); r.addEventListener('pointerup', aus); r.addEventListener('touchend', aus);
+}
+
 setzeTheme(ls('lk_theme') || 'nacht');
 var c = ls('lk_daten');
 if (c) TABELLEN.concat(['sheetUrl']).forEach(function (t) { if (c[t] != null) D[t] = c[t]; });
 outbox = ls('lk_outbox') || [];
 var ZIEL = window.LK_START || {};
-if (ZIEL.view) { stapel = ZIEL.view === 'kompass' || ZIEL.view === 'sos' || ZIEL.view === 'rueckblick' ? [] : [{ view: 'kompass', param: null }]; route = { view: ZIEL.view, param: ZIEL.param || null }; tiefe = stapel.length; }
+if (ZIEL.view) { stapel = HAUPT.indexOf(ZIEL.view) > -1 ? [] : [{ view: 'kompass', param: null }]; route = { view: ZIEL.view, param: ZIEL.param || null }; tiefe = stapel.length; }
 if (c) render(true);
 laden().then(function () { if (!outbox.length) startausstattung(); });
 abarbeiten();
