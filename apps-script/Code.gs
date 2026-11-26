@@ -106,6 +106,7 @@ function huellenLink_() {
   // Darum zählt zuerst die Bereitstellungs-ID aus den Skript-Eigenschaften (APP_ID).
   const props = PropertiesService.getScriptProperties();
   let id = String(props.getProperty('APP_ID') || '').trim();
+  if (/\/dev\b/.test(id)) throw new Error('APP_ID: Bitte die Bereitstellungs-ID oder die /exec-Adresse eintragen, nicht die Test-Adresse (/dev).');
   const m = id.match(/\/macros\/s\/([A-Za-z0-9_-]+)/);
   if (m) id = m[1]; // auch eine ganze /exec-Adresse ist erlaubt
   if (!id) {
