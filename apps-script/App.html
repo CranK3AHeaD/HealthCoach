@@ -2166,7 +2166,7 @@ AKT.fwAutoWahl = function (d, el) { FW_EDIT.auto = d.id; $$('#fwAutoSeg button')
 function fwReiheHtml(e) {
   var p = !e.neu && fwPlatz(e.id); if (!p || p.von < 2) return '';
   var kat = (FW_KAT.find(function (k) { return k[0] === fwZ(e.id).kat; }) || ['', ''])[1];
-  return '<p class="fw-lbl">Reihenfolge</p><div class="fw-reihe"><span>Platz <b id="fwPlatz">' + p.platz + '</b> von ' + p.von + ' in ' + esc(kat) + '</span>' +
+  return '<p class="fw-lbl">Reihenfolge</p><div class="fw-ordnung"><span>Platz <b id="fwPlatz">' + p.platz + '</b> von ' + p.von + ' in ' + esc(kat) + '</span>' +
     '<button type="button" class="btn klein" data-act="fwSchieben" data-id="-1" aria-label="Nach oben"' + (p.platz === 1 ? ' disabled' : '') + '>▲</button>' +
     '<button type="button" class="btn klein" data-act="fwSchieben" data-id="1" aria-label="Nach unten"' + (p.platz === p.von ? ' disabled' : '') + '>▼</button></div>';
 }
