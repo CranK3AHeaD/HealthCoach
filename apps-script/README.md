@@ -33,6 +33,7 @@ Direktlink: `?v=fwz`.
 
 - `Code.gs` erlaubt das Einbetten (`XFrameOptionsMode.ALLOWALL`).
 - Die Bereitstellung steht auf **Zugriff: Jeder**, damit das Einbetten auch auf dem iPhone klappt (Safari schickt in eingebetteten Seiten keine Google-Anmeldung mit). Geschützt ist die App dann durch einen geheimen Schlüssel (`APP_SCHLUESSEL` in den Skript-Eigenschaften, wird automatisch angelegt). Jeder Aufruf aus dem Browser läuft über `api()` und prüft ihn. Du selbst kommst angemeldet auch ohne Schlüssel hinein.
+- In den Skript-Eigenschaften `APP_ID` mit der Bereitstellungs-ID anlegen (Bereitstellen → Bereitstellungen verwalten, die lange ID). Im Editor liefert Google sonst die Test-Adresse (`/dev`), die nur angemeldet funktioniert.
 - Den persönlichen Link bekommst du im Editor mit `linkOhneBanner` (steht im Ausführungsprotokoll) oder in der App unter Zahnrad → Auf den Startbildschirm. Danach führen auch die Erinnerungs-Mails zur Hülle.
 - Adresse der Hülle: `https://crank3ahead.github.io/HealthCoach/kompass/?a=…&k=…` (Konstante `APP.huelle` in `Code.gs`).
 - Neuen Schlüssel erzwingen: `APP_SCHLUESSEL` in den Skript-Eigenschaften löschen, dann `linkOhneBanner` erneut ausführen.

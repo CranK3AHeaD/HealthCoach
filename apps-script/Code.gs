@@ -102,10 +102,20 @@ function api(k, fn, args) {
 
 /** Adresse der Hülle mit deiner App-Adresse und dem Schlüssel. */
 function huellenLink_() {
-  const url = ScriptApp.getService().getUrl() || '';
-  const m = url.match(/\/macros\/s\/([A-Za-z0-9_-]+)\//);
-  if (!m) throw new Error('Die Web-App ist noch nicht bereitgestellt.');
-  return APP.huelle + '?a=' + m[1] + '&k=' + schluessel_();
+  // Im Editor liefert getUrl() oft die Test-Adresse (/dev), die nur angemeldet funktioniert.
+  // Darum zählt zuerst die Bereitstellungs-ID aus den Skript-Eigenschaften (APP_ID).
+  const props = PropertiesService.getScriptProperties();
+  let id = String(props.getProperty('APP_ID') || '').trim();
+  const m = id.match(/\/macros\/s\/([A-Za-z0-9_-]+)/);
+  if (m) id = m[1]; // auch eine ganze /exec-Adresse ist erlaubt
+  if (!id) {
+    const url = ScriptApp.getService().getUrl() || '';
+    const u = url.match(/\/macros\/s\/([A-Za-z0-9_-]+)\/exec/);
+    if (!u) throw new Error('Bitte in den Skript-Eigenschaften APP_ID mit der Bereitstellungs-ID anlegen (Bereitstellen → Bereitstellungen verwalten).');
+    id = u[1];
+  }
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(id)) throw new Error('APP_ID sieht nicht wie eine Bereitstellungs-ID aus.');
+  return APP.huelle + '?a=' + id + '&k=' + schluessel_();
 }
 
 /** Im Editor ausführen: Der Link für den Home-Bildschirm ohne Google-Banner steht dann im Ausführungsprotokoll. */
