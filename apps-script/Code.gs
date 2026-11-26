@@ -119,7 +119,7 @@ function ki(prompt) {
   const eigen = String(props.getProperty('GEMINI_MODEL') || '').trim();
   const modelle = (eigen ? [eigen] : []).concat(['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])
     .filter(function (m, i, a) { return a.indexOf(m) === i; });
-  let letzter = '';
+  let letzter = '', ausgelastet = false;
   for (let i = 0; i < modelle.length; i++) {
     const r = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelle[i]) + ':generateContent', {
       method: 'post',
@@ -133,7 +133,7 @@ function ki(prompt) {
     });
     const code = r.getResponseCode();
     const body = r.getContentText();
-    if (code === 429) throw new Error('rate_limited');
+    if (code === 429) { ausgelastet = true; Utilities.sleep(700); continue; } // Kontingent erschöpft: nächstes Modell versuchen
     if (code === 404) { letzter = 'Modell ' + modelle[i] + ' nicht gefunden'; continue; }
     if (code === 500 || code === 503) { // überlastet: kurz warten, dann das nächste Modell
       letzter = 'Gemini ist gerade überlastet. Versuch es in ein paar Minuten noch einmal.';
@@ -153,6 +153,7 @@ function ki(prompt) {
     const roh = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
     try { return JSON.parse(roh); } catch (err) { return { antwort: text }; }
   }
+  if (ausgelastet) throw new Error('rate_limited');
   throw new Error(letzter.indexOf('überlastet') > -1 ? letzter : 'Gemini: ' + letzter);
 }
 
@@ -248,7 +249,10 @@ function db_() {
   let ss = null;
   const id = props.getProperty('SHEET_ID');
   if (id) {
-    try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; }
+    // Ein bereits verknüpftes Sheet nie still ersetzen: lieber einen Fehler zeigen, die Daten bleiben dort.
+    try { ss = SpreadsheetApp.openById(id); } catch (e) {
+      throw new Error('Dein Daten-Sheet lässt sich gerade nicht öffnen. Versuch es gleich noch einmal. (' + String(e && e.message || e).slice(0, 200) + ')');
+    }
   }
   if (!ss) {
     try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { ss = null; }
