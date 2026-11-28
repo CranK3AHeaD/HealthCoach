@@ -5,7 +5,7 @@
 /* =========================================================
    Zustand, Speicher, Synchronisierung
    ========================================================= */
-var TABELLEN = ['Bereiche', 'Situationen', 'Werte', 'Regeln', 'Reflexionen', 'Skills', 'SkillLog', 'Dankbarkeit', 'CheckIns', 'Fruehwarnzeichen', 'FwEintraege', 'FwEinstellungen'];
+var TABELLEN = ['Bereiche', 'Situationen', 'Werte', 'Regeln', 'Reflexionen', 'Skills', 'SkillLog', 'Dankbarkeit', 'GutGemacht', 'CheckIns', 'Fruehwarnzeichen', 'FwEintraege', 'FwEinstellungen'];
 var STATUS = { gilt: 'Gilt', entwurf: 'Entwurf', pruefen: 'Überprüfen' };
 var WIRKUNG = {
   geholfen: { label: 'Hat geholfen', zeichen: '✓' },
@@ -41,7 +41,8 @@ var ICONS = {
   weg: '<path d="M6 21c3-4 0-7 5-9.5S15 7 13 3"/><path d="M15 21c1.5-2 2.5-3.5 2-5"/>',
   euro: '<path d="M17 6.5A6.5 6.5 0 1 0 17 17.5M4 10h9M4 14h9"/>',
   stern: '<path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/>',
-  kreis: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'
+  kreis: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  medaille: '<circle cx="12" cy="15" r="5.5"/><path d="M8.5 3.5L12 9.5l3.5-6"/><path d="M9.8 15.1l1.5 1.5 3-3"/>'
 };
 var EMOJI = { '🌿': 'blatt', '🤝': 'menschen', '🛡️': 'schild', '🧩': 'puzzle', '🌊': 'welle', '🧰': 'koffer', '🏡': 'haus',
   '💬': 'sprechblase', '🗯️': 'sprechblase', '🔥': 'flamme', '🌙': 'mond', '⚡': 'blitz', '🧭': 'kompass', '🔋': 'batterie',
@@ -52,7 +53,7 @@ function ikon(sym, cls) {
   return '<span class="ic-txt">' + esc(sym || '·') + '</span>';
 }
 
-var D = { Bereiche: [], Situationen: [], Werte: [], Regeln: [], Reflexionen: [], Skills: [], SkillLog: [], Dankbarkeit: [], CheckIns: [], Fruehwarnzeichen: [], FwEintraege: [], FwEinstellungen: [], sheetUrl: '' };
+var D = { Bereiche: [], Situationen: [], Werte: [], Regeln: [], Reflexionen: [], Skills: [], SkillLog: [], Dankbarkeit: [], GutGemacht: [], CheckIns: [], Fruehwarnzeichen: [], FwEintraege: [], FwEinstellungen: [], sheetUrl: '' };
 var route = { view: 'kompass', param: null };
 var tiefe = 0;
 var filter = { q: '', bereich: '', fav: false, status: '' };
@@ -278,7 +279,7 @@ function render(still) {
   $('#brand').hidden = unter;
   $('#topTitel').hidden = !unter;
   $('#topTitel').textContent = titel;
-  var navZiel = { regel: 'regeln', bereich: 'regeln', jetzt: 'sos', edit: 'regeln', werte: 'regeln', skill: 'sos', skills: 'sos', skillFertig: 'sos', verlauf: 'rueckblick', woche: 'rueckblick', erfahrungen: 'rueckblick', dank: 'kompass', checkin: 'kompass', bereiche: 'mehr', situationen: 'mehr', erinnerung: 'mehr' }[v] || v;
+  var navZiel = { regel: 'regeln', bereich: 'regeln', jetzt: 'sos', edit: 'regeln', werte: 'regeln', skill: 'sos', skills: 'sos', skillFertig: 'sos', verlauf: 'rueckblick', woche: 'rueckblick', erfahrungen: 'rueckblick', dank: 'kompass', gut: 'kompass', checkin: 'kompass', bereiche: 'mehr', situationen: 'mehr', erinnerung: 'mehr' }[v] || v;
   document.body.classList.toggle('krise', v === 'sos' || v === 'skill');
   $$('#nav button').forEach(function (b) { b.classList.toggle('aktiv', b.dataset.nav === navZiel); });
   if (NACH[v]) NACH[v](route.param);
@@ -943,6 +944,7 @@ VIEWS.dank = function (_, setTitel) {
     return '<div class="block danktag"><div class="datum">' + esc(new Date(t + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) + '</div><ul>' +
       tage[t].sort(function (a, b) { return a.nr - b.nr; }).map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
   }).join('') : leer('Hier sammeln sich deine guten Momente.', 'Jeder Tag, an dem du etwas aufschreibst, kommt hierher.', '');
+  html += '<button class="block dankkarte gutkarte" data-act="nav" data-id="gut"><span class="sym" style="--c:#8FAE8A">' + ikon('medaille') + '</span><span class="txt"><strong>Und was hast du gut gemacht?</strong><small>' + gutAm(heute()).length + ' von ' + GUT_N + ' notiert</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
   return html;
 };
 NACH.dank = function () {
@@ -956,6 +958,60 @@ NACH.dank = function () {
       else if (D.Dankbarkeit.some(function (x) { return x.id === id; })) entferne('Dankbarkeit', id);
       f.closest('.dankzeile').querySelector('.nr').classList.toggle('an', !!t);
       if (t && dankAm(tag).length === DANK_N) toast('Alle ' + DANK_N + ' notiert. Schön, dass du dir die Zeit nimmst.');
+    });
+  });
+};
+
+/* =========================================================
+   Gut gemacht (Tagebuch)
+   ========================================================= */
+var GUT_N = ls('lk_gut_anzahl') || 3;
+var GUT_ANSTOSS = ['Etwas, das ich trotz Müdigkeit geschafft habe', 'Wo ich gut für mich gesorgt habe', 'Ein Moment, in dem ich ruhig geblieben bin', 'Eine kleine Aufgabe, die jetzt erledigt ist', 'Wo ich Nein gesagt habe', 'Ein Skill, den ich ausprobiert habe', 'Wo ich um Hilfe gebeten habe', 'Wie ich zu jemandem freundlich war', 'Etwas, das ich angefangen habe', 'Eine Pause, die ich mir erlaubt habe'];
+function gutAm(tag) { return D.GutGemacht.filter(function (x) { return x.datum === tag && x.text; }).sort(function (a, b) { return a.nr - b.nr; }); }
+function gutSerie() {
+  var d = new Date(), n = 0;
+  if (!gutAm(tagIso(d)).length) d.setDate(d.getDate() - 1);
+  while (gutAm(tagIso(d)).length) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function gutAnzahlHtml(links) {
+  return '<div class="dankanzahl"' + (links ? ' style="justify-content:flex-start;margin:0"' : '') + '><span>Jeden Tag</span><button class="icon-btn" data-act="gutAnzahl" data-d="-1" aria-label="Weniger">−</button><b>' + GUT_N + '</b><button class="icon-btn" data-act="gutAnzahl" data-d="1" aria-label="Mehr">+</button><span>Dinge</span></div>';
+}
+VIEWS.gut = function (_, setTitel) {
+  setTitel('Gut gemacht');
+  var tag = heute(), serie = gutSerie();
+  var html = '<h2>Was hast du heute gut gemacht?</h2><p class="leise">' + esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) +
+    (serie > 1 ? ' · ' + serie + ' Tage in Folge' : '') + '</p>';
+  html += '<p class="leise klein" style="margin:-4px 0 14px">Auch Kleines zählt. Aufstehen, durchatmen, eine Mail abschicken.</p>';
+  html += '<div class="block dankliste gutliste">';
+  for (var i = 1; i <= GUT_N; i++) {
+    var e = D.GutGemacht.find(function (x) { return x.datum === tag && +x.nr === i; });
+    var a = GUT_ANSTOSS[(i - 1 + new Date().getDate()) % GUT_ANSTOSS.length];
+    html += '<label class="dankzeile"><span class="nr' + (e && e.text ? ' an' : '') + '">' + i + '</span><textarea rows="1" data-gut="' + i + '" placeholder="' + esc(a) + ' …">' + esc(e ? e.text : '') + '</textarea></label>';
+  }
+  html += '</div>' + gutAnzahlHtml(false);
+  var tage = {};
+  D.GutGemacht.forEach(function (x) { if (x.text && x.datum !== tag) (tage[x.datum] = tage[x.datum] || []).push(x); });
+  var liste = Object.keys(tage).sort().reverse();
+  html += '<h3>Das hast du schon geschafft</h3>';
+  html += liste.length ? liste.map(function (t) {
+    return '<div class="block danktag guttag"><div class="datum">' + esc(new Date(t + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) + '</div><ul>' +
+      tage[t].sort(function (a, b) { return a.nr - b.nr; }).map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
+  }).join('') : leer('Hier sammelt sich, was du geschafft hast.', 'Jeder Tag, an dem du etwas aufschreibst, kommt hierher.', '');
+  html += '<button class="block dankkarte" data-act="nav" data-id="dank"><span class="sym" style="--c:#C9A45C">' + ikon('sonne') + '</span><span class="txt"><strong>Zur Dankbarkeit</strong><small>' + dankAm(heute()).length + ' von ' + DANK_N + ' notiert</small></span>' + svg('pfeil').replace('<svg', '<svg class="pfeil"') + '</button>';
+  return html;
+};
+NACH.gut = function () {
+  $$('[data-gut]').forEach(function (f) {
+    var groesse = function () { f.style.height = 'auto'; f.style.height = f.scrollHeight + 'px'; };
+    groesse();
+    f.addEventListener('input', groesse);
+    f.addEventListener('change', function () {
+      var nr = +f.dataset.gut, tag = heute(), id = 'g-' + tag + '-' + nr, t = f.value.trim();
+      if (t) sichere('GutGemacht', { id: id, datum: tag, nr: nr, text: t });
+      else if (D.GutGemacht.some(function (x) { return x.id === id; })) entferne('GutGemacht', id);
+      f.closest('.dankzeile').querySelector('.nr').classList.toggle('an', !!t);
+      if (t && gutAm(tag).length === GUT_N) toast('Alle ' + GUT_N + ' notiert. Das zählt, auch wenn es klein war.');
     });
   });
 };
@@ -983,7 +1039,10 @@ function anspKopf() {
   var v = TRACK.v;
   var h = new Date().getHours(), art = h < 14 ? 'morgen' : 'abend', ci = checkinHeute(art), n = dankAm(heute()).length;
   var links = ringKnopf('checkin', art, art === 'morgen' ? 'sonne' : 'mond', CHECK[art].titel.replace('-Check-in', '-<wbr>Check-in'), ci ? 'erledigt' : '10 Sekunden', ci ? 1 : 0, !!ci);
-  var rechts = ringKnopf('nav', 'dank', 'herz', 'Dankbarkeit', (n >= DANK_N ? DANK_N : n) + ' von ' + DANK_N, Math.min(1, n / DANK_N), n >= DANK_N);
+  var g = gutAm(heute()).length;
+  var rechts = '<div class="schnell-stapel">' + ringKnopf('nav', 'dank', 'herz', 'Dankbarkeit', (n >= DANK_N ? DANK_N : n) + ' von ' + DANK_N, Math.min(1, n / DANK_N), n >= DANK_N) +
+    ringKnopf('nav', 'gut', 'medaille', 'Gut gemacht', (g >= GUT_N ? GUT_N : g) + ' von ' + GUT_N, Math.min(1, g / GUT_N), g >= GUT_N).replace('class="schnell-k', 'class="schnell-k gut') + '</div>';
+  links = '<div class="schnell-stapel">' + links + '</div>';
   var html = '<div class="hero schnell">' + links +
     '<div class="hero-k">' + roseAnspannung(v) + '<div class="anspmitte"><span id="anspWert" style="color:' + ANSP_FARBE[v] + '">' + v + '</span><small id="anspWort">' + WORT[v] + '</small></div></div>' +
     rechts + '</div>';
@@ -1126,6 +1185,7 @@ VIEWS.checkin = function (art, setTitel) {
   }).join('');
   html += '<div class="feld"><label for="ciText">' + k.text + '</label><input type="text" id="ciText" maxlength="200" placeholder="' + esc(k.platz) + '" value="' + esc(c.notiz || '') + '"></div>';
   if (art === 'abend') html += '<button class="block dankkarte" data-act="nav" data-id="dank" style="margin-top:4px"><span class="sym" style="--c:#C9A45C">' + ikon('sonne') + '</span><span class="txt"><strong>Noch schnell zur Dankbarkeit?</strong><small>' + dankAm(heute()).length + ' von ' + DANK_N + ' notiert</small></span></button>';
+  if (art === 'abend') html += '<button class="block dankkarte gutkarte" data-act="nav" data-id="gut" style="margin-top:10px"><span class="sym" style="--c:#8FAE8A">' + ikon('medaille') + '</span><span class="txt"><strong>Und was hast du gut gemacht?</strong><small>' + gutAm(heute()).length + ' von ' + GUT_N + ' notiert</small></span></button>';
   if (art === 'abend') html += fwCheckinTeil();
   html += '<div class="aktionen"><button class="btn primaer" data-act="ciSpeichern">' + svg('haken') + 'Fertig</button><button class="btn ghost" data-act="zurueck">Später</button></div>';
   return html;
@@ -1151,13 +1211,14 @@ function wochenDaten() {
   });
   var ci = D.CheckIns.filter(function (c) { return set[c.datum]; });
   var dank = D.Dankbarkeit.filter(function (x) { return x.text && set[x.datum]; });
+  var gut = D.GutGemacht.filter(function (x) { return x.text && set[x.datum]; }).sort(function (a, b) { return a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : a.nr - b.nr; });
   var refl = D.Reflexionen.filter(function (x) { return set[tagIso(new Date(x.datum))]; });
   return {
     tage: proTag, alle: ansp.map(function (x) { return +x.vorher; }),
     schlaf: mittel(ci.filter(function (c) { return c.schlaf; }).map(function (c) { return +c.schlaf; })),
     stimmung: mittel(ci.filter(function (c) { return c.stimmung; }).map(function (c) { return +c.stimmung; })),
     energie: mittel(ci.filter(function (c) { return c.energie; }).map(function (c) { return +c.energie; })),
-    checkins: ci, skills: skills, dank: dank, refl: refl
+    checkins: ci, skills: skills, dank: dank, gut: gut, refl: refl
   };
 }
 var WOCHE_KI = null;
@@ -1188,6 +1249,11 @@ VIEWS.woche = function (_, setTitel) {
     var tipps = w.dank.slice().sort(function () { return 0.5 - Math.random(); }).slice(0, 3);
     html += '<h3>Gute Momente</h3><div class="block danktag"><ul>' + tipps.map(function (x) { return '<li>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
   }
+  if (w.gut.length) {
+    var gTage = {}; w.gut.forEach(function (x) { gTage[x.datum] = 1; });
+    html += '<h3>Das hast du gut gemacht</h3><div class="block danktag guttag"><div class="datum">' + w.gut.length + ' Dinge an ' + Object.keys(gTage).length + ' Tagen</div><ul>' +
+      w.gut.map(function (x) { return '<li><span class="gut-wt">' + esc(new Date(x.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })) + '</span>' + esc(x.text) + '</li>'; }).join('') + '</ul></div>';
+  }
   html += kiBox('kiWoche', 'Rückblick mit Gemini', 'Optional: Was möchtest du über deine Woche wissen? z. B. „Wann war es am schwersten?“', 'Woche auswerten', 'kiWoche');
   return html;
 };
@@ -1201,9 +1267,10 @@ function kiWoche() {
       anspannung: anspLog().filter(function (x) { return w.tage.some(function (t) { return t.tag === tagIso(new Date(x.datum)); }); }).map(function (x) { var d = new Date(x.datum); return { zeit: d.toLocaleString('de-DE', { weekday: 'long', hour: '2-digit', minute: '2-digit' }), wert: x.vorher, nachher: x.nachher, skill: x.skillId ? (skill(x.skillId) || {}).titel : '', notiz: x.notiz }; }),
       checkins: w.checkins.map(function (c) { return { tag: new Date(c.datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long' }), art: c.art, schlaf: c.schlaf, energie: c.energie, stimmung: c.stimmung, tag_gesamt: c.tag, notiz: c.notiz }; }),
       dankbarkeit: w.dank.map(function (x) { return x.text; }),
+      gut_gemacht: w.gut.map(function (x) { return x.text; }),
       regeln_reflexionen: w.refl.map(function (x) { var r = regel(x.regelId); return { regel: r ? r.titel : '', wirkung: x.wirkung, notiz: x.notiz }; })
     };
-    var prompt = 'Du schreibst einen persönlichen Wochenrückblick in einer deutschsprachigen Selbsthilfe-App. Sprich die Person mit du an, warm, ehrlich und konkret, ohne zu bewerten und ohne Fachjargon. Skalen: Anspannung 0-10 (10 = am Limit), Check-ins 1-5 (5 = sehr gut). Erfinde nichts, beziehe dich nur auf die Daten. Stelle keine Diagnosen.\n' + KI_SICHER +
+    var prompt = 'Du schreibst einen persönlichen Wochenrückblick in einer deutschsprachigen Selbsthilfe-App. Sprich die Person mit du an, warm, ehrlich und konkret, ohne zu bewerten und ohne Fachjargon. Skalen: Anspannung 0-10 (10 = am Limit), Check-ins 1-5 (5 = sehr gut). Erfinde nichts, beziehe dich nur auf die Daten. Stelle keine Diagnosen. Würdige ausdrücklich, was die Person unter gut_gemacht notiert hat.\n' + KI_SICHER +
       (frage ? '\nDie Person fragt besonders: """' + frage + '"""' : '') + '\n\nDaten der letzten 7 Tage:\n' + JSON.stringify(daten) +
       '\n\nAntworte nur mit JSON: {"zusammenfassung": "3-4 Sätze", "muster": ["2-3 beobachtete Muster, jeweils mit Beleg aus den Daten"], "geholfen": ["was nachweislich geholfen hat"], "naechste_woche": "ein kleiner, konkreter Vorschlag", "frage": "eine offene Frage zum Nachdenken"}';
     return ki.json(prompt, { modelTier: 'default' });
@@ -1233,12 +1300,12 @@ VIEWS.erinnerung = function (_, setTitel) {
   var html = '<h2>Erinnerungen</h2><p class="leise">Die App schickt dir eine kurze E-Mail mit einem Link, der direkt an die richtige Stelle führt.</p>';
   html += '<div class="block" style="padding:4px 18px">' +
     z('morgen', 'Morgen-Check-in', 'Täglich', 'morgenZeit') +
-    z('abend', 'Abend-Check-in und Dankbarkeit', 'Täglich', 'abendZeit') +
+    z('abend', 'Abend-Check-in, Dankbarkeit, Gut gemacht', 'Täglich', 'abendZeit') +
     z('woche', 'Wochenrückblick', 'Sonntags', 'wocheZeit') +
     z('ansp', 'Anspannung zwischendurch', 'Um 11, 15 und 18 Uhr', '') + '</div>';
   html += '<h3>So sieht die Mail aus</h3><div class="block mailvorschau"><div class="mv-kopf"><b>Lebenskompass</b><span>' + esc(ERI.abendZeit) + '</span></div>' +
-    '<div class="mv-betreff">Wie war dein Tag?</div><p>Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, und wofür bist du heute dankbar?</p>' +
-    '<div class="mv-knoepfe"><span>Abend-Check-in</span><span>Dankbarkeit</span><span>Anspannung eintragen</span></div></div>';
+    '<div class="mv-betreff">Wie war dein Tag?</div><p>Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, wofür bist du heute dankbar, und was hast du gut gemacht?</p>' +
+    '<div class="mv-knoepfe"><span>Abend-Check-in</span><span>Dankbarkeit</span><span>Gut gemacht</span><span>Anspannung eintragen</span></div></div>';
   html += '<p class="leise klein">Die Mails gehen an dein Google-Konto. Push-Nachrichten wie bei einer installierten App sind mit Apps Script leider nicht möglich.</p>';
   html += '<div class="aktionen"><button class="btn" data-act="eriTest">' + svg('notiz') + 'Test-Mail schicken</button></div>';
   return html;
@@ -1307,7 +1374,7 @@ NACH.sos = function () {
 
 /* ---------- Rückblick ---------- */
 var RB = { tab: 'woche', filt: 'alle' };
-var RB_ART = { alle: 'Alle', ansp: 'Anspannung', skill: 'Skills', checkin: 'Check-ins', dank: 'Dankbarkeit', regel: 'Regeln' };
+var RB_ART = { alle: 'Alle', ansp: 'Anspannung', skill: 'Skills', checkin: 'Check-ins', dank: 'Dankbarkeit', gut: 'Gut gemacht', regel: 'Regeln' };
 function zeitstrahl() {
   var ev = [];
   D.SkillLog.forEach(function (x) {
@@ -1320,10 +1387,13 @@ function zeitstrahl() {
   var dankTage = {};
   D.Dankbarkeit.forEach(function (x) { if (x.text) (dankTage[x.datum] = dankTage[x.datum] || []).push(x.text); });
   Object.keys(dankTage).forEach(function (t) { ev.push({ art: 'dank', zeit: t + 'T20:30:00', titel: 'Dankbar für ' + dankTage[t].length + (dankTage[t].length === 1 ? ' Ding' : ' Dinge'), liste: dankTage[t] }); });
+  var gutTage = {};
+  D.GutGemacht.forEach(function (x) { if (x.text) (gutTage[x.datum] = gutTage[x.datum] || []).push(x.text); });
+  Object.keys(gutTage).forEach(function (t) { ev.push({ art: 'gut', zeit: t + 'T20:35:00', titel: gutTage[t].length + (gutTage[t].length === 1 ? ' Ding' : ' Dinge') + ' gut gemacht', liste: gutTage[t] }); });
   D.Reflexionen.forEach(function (x) { var r = regel(x.regelId); ev.push({ art: 'regel', zeit: x.datum, titel: r ? r.titel : 'Regel', sub: (WIRKUNG[x.wirkung] || {}).label || '', notiz: x.notiz }); });
   return ev.filter(function (e) { return RB.filt === 'alle' || e.art === RB.filt; }).sort(function (a, b) { return a.zeit < b.zeit ? 1 : -1; });
 }
-var RB_SYM = { ansp: 'welle', skill: 'hand', checkin: 'sonne', dank: 'herz', regel: 'kompass' };
+var RB_SYM = { ansp: 'welle', skill: 'hand', checkin: 'sonne', dank: 'herz', gut: 'medaille', regel: 'kompass' };
 VIEWS.rueckblick = function () {
   var html = '<h2>Rückblick</h2><div class="segment" style="margin-bottom:18px"><button data-act="rbTab" data-id="woche"' + (RB.tab === 'woche' ? ' class="an"' : '') + '>Diese Woche</button><button data-act="rbTab" data-id="zeit"' + (RB.tab === 'zeit' ? ' class="an"' : '') + '>Zeitstrahl</button></div>';
   if (RB.tab === 'woche') return html + fwRueckblickKarte() + VIEWS.woche(null, function () {}).replace('<h2>Deine Woche</h2>', '');
@@ -1333,8 +1403,8 @@ VIEWS.rueckblick = function () {
   ev.forEach(function (e) {
     var d = new Date(e.zeit), t = tagIso(d);
     if (t !== tag) { if (tag) html += '</div>'; tag = t; html += '<div class="zs-tag">' + esc(t === heute() ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })) + '</div><div class="block zs-block">'; }
-    var uhr = e.art === 'dank' || e.art === 'checkin' ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    html += '<div class="zs-e"><span class="sym" style="--c:' + (e.art === 'ansp' ? ANSP_FARBE[e.wert] : e.art === 'skill' ? 'var(--sos)' : e.art === 'dank' ? '#C9A45C' : e.art === 'checkin' ? '#8A8FB8' : 'var(--accent)') + '">' + ikon(RB_SYM[e.art]) + '</span><div class="txt"><b>' + esc(e.titel) + '</b>' + (uhr ? '<span class="uhr">' + uhr + '</span>' : '') +
+    var uhr = e.art === 'dank' || e.art === 'gut' || e.art === 'checkin' ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    html += '<div class="zs-e"><span class="sym" style="--c:' + (e.art === 'ansp' ? ANSP_FARBE[e.wert] : e.art === 'skill' ? 'var(--sos)' : e.art === 'dank' ? '#C9A45C' : e.art === 'gut' ? '#8FAE8A' : e.art === 'checkin' ? '#8A8FB8' : 'var(--accent)') + '">' + ikon(RB_SYM[e.art]) + '</span><div class="txt"><b>' + esc(e.titel) + '</b>' + (uhr ? '<span class="uhr">' + uhr + '</span>' : '') +
       (e.sub ? '<small>' + esc(e.sub) + '</small>' : '') + (e.notiz ? '<small class="nz">' + esc(e.notiz) + '</small>' : '') +
       (e.liste ? '<ul>' + e.liste.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</div></div>';
   });
@@ -1354,6 +1424,7 @@ VIEWS.mehr = function () {
     z('nav', 'situationen', '◎', 'Situationen', D.Situationen.length + ' Situationen für SOS und Regeln') +
     z('nav', 'skills', '✚', 'Notfall-Skills', D.Skills.length + ' Skills');
   html += '<h3>Dankbarkeit</h3><div class="dankanzahl" style="justify-content:flex-start;margin:0"><span>Jeden Tag</span><button class="icon-btn" data-act="dankAnzahl" data-d="-1" aria-label="Weniger">−</button><b>' + DANK_N + '</b><button class="icon-btn" data-act="dankAnzahl" data-d="1" aria-label="Mehr">+</button><span>Dinge</span></div>';
+  html += '<h3>Gut gemacht</h3>' + gutAnzahlHtml(true) + '<p class="leise klein" style="margin:8px 0 0">Gespeichert im Tabellenblatt „GutGemacht“, getrennt von der Dankbarkeit.</p>';
   html += '<h3>Darstellung</h3><div class="segment" id="themeWahl">' +
     '<button data-act="theme" data-id="nacht"' + (theme === 'nacht' ? ' class="an"' : '') + '>Nacht</button>' +
     '<button data-act="theme" data-id="morgen"' + (theme === 'morgen' ? ' class="an"' : '') + '>Morgen</button></div>';
@@ -1552,6 +1623,7 @@ var AKT = {
   },
   anspSOS: function () { var l = letzteAnsp(); if (l) SOS.a = +l.vorher; geh('sos'); },
   dankAnzahl: function (d) { DANK_N = Math.min(10, Math.max(1, DANK_N + (+d.d))); ls('lk_dank_anzahl', DANK_N); render(true); },
+  gutAnzahl: function (d) { GUT_N = Math.min(10, Math.max(1, GUT_N + (+d.d))); ls('lk_gut_anzahl', GUT_N); render(true); },
   kiSkill: kiSkill, kiRegel: kiRegel, kiNeuSkill: kiNeuSkill,
   neuKI: function () { geh('edit', { ki: true, bereich: filter.bereich || '' }); },
   kiIdee: function (d) { $('#fKern').value = KI_IDEEN[+d.i] || $('#fKern').value; toast('Kernsatz übernommen'); },
@@ -2003,7 +2075,7 @@ function fwCheckinTeil() {
   if (!D.Fruehwarnzeichen.length) return '';
   if (!FW_CI || FW_CI.tag !== heute()) FW_CI = { tag: heute(), l: fwManuell(heute()).slice() };
   var auto = fwAuto(heute()), an = function (id) { return FW_CI.l.indexOf(id) > -1 || auto.indexOf(id) > -1; };
-  return '<div class="feld fw-ci"><span class="label">Frühwarnzeichen heute <span class="fw-auto">neu</span></span><div class="chips">' +
+  return '<div class="feld fw-ci"><span class="label">Frühwarnzeichen heute</span><div class="chips">' +
     fwListe().map(function (z) { return '<button type="button" class="chip klein' + (an(z.id) ? ' an' : '') + '" data-act="fwCi" data-id="' + esc(z.id) + '">' + esc(z.name) + '</button>'; }).join('') +
     '</div><p class="leise" style="font-size:13px;margin:8px 0 0">Ausführlicher unter Frühwarnzeichen im Menü.</p></div>';
 }

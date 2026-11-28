@@ -9,13 +9,22 @@ Dieselbe App wie die Supabase-Variante (Branch `app-v1`), aber als Apps-Script-W
 4. **Projekteinstellungen → Skript-Eigenschaften**: `GEMINI_API_KEY` mit deinem Gemini-Schlüssel anlegen (optional `GEMINI_MODEL`, Standard `gemini-2.5-flash`).
 5. **Bereitstellen → Bereitstellungen verwalten → Bearbeiten → Neue Version → Bereitstellen**.
 
-Das vorhandene Daten-Sheet wird weiter genutzt. Neue Tabellenblätter (Skills, SkillLog, Dankbarkeit, CheckIns, Fruehwarnzeichen, FwEintraege, FwEinstellungen) und neue Spalten legt die App selbst an.
+Das vorhandene Daten-Sheet wird weiter genutzt. Neue Tabellenblätter (Skills, SkillLog, Dankbarkeit, GutGemacht, CheckIns, Fruehwarnzeichen, FwEintraege, FwEinstellungen) und neue Spalten legt die App selbst an.
 
 ## Erinnerungen
 In der App unter Einstellungen → Erinnerungen einschalten. Das legt einen stündlichen Zeit-Trigger an, der die Mails zu den gewählten Zeiten schickt. Links in der Mail führen direkt zum Check-in, zur Dankbarkeit oder zum Wochenrückblick.
 
 ## Menü
 Unten: Heute, Kompass, SOS, Frühwarnzeichen, Rückblick. Die Einstellungen liegen als Zahnrad oben rechts.
+
+## Gut gemacht
+Wie die Dankbarkeit, nur für das, was du an dem Tag gut gemacht hast. Zweiter Ring neben der Dankbarkeit auf „Heute“, eigene Seite mit einstellbarer Anzahl (Seite selbst oder Zahnrad → Gut gemacht), Hinweis im Abend-Check-in und in der Abend-Mail, eigener Filter im Zeitstrahl und Abschnitt „Das hast du gut gemacht“ im Wochenrückblick (geht auch an die Gemini-Auswertung).
+
+| Tabellenblatt | Inhalt |
+|---|---|
+| `GutGemacht` | id, datum, nr, text (eine Zeile pro Eintrag, wie `Dankbarkeit`) |
+
+Direktlink: `?v=gut`.
 
 ## Frühwarnzeichen
 Eigene Zeichen mit Bereich, „Woran ich es merke“, Gewicht (1 bis 3), Alarm, Hilfe-Schritten und Skill, auf Wunsch mit KI formuliert. Die App zählt die Punkte der letzten Tage und zeigt eine von drei Stufen: Stabil (Welle), Achtsam (Dreieck) und Handeln (Raute), immer mit Symbol und Wort statt nur Farbe.

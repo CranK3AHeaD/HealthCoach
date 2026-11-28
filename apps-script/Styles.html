@@ -698,6 +698,18 @@ h3{font-size:12px}
 
 
 /* ---------- Frühwarnzeichen, Kompass-Animation, Nordstern ---------- */
+/* Gut gemacht */
+.schnell-stapel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.schnell-stapel .schnell-k{padding:0}
+.schnell-stapel .schnell-k .ring{width:48px;height:48px}
+.schnell-stapel .schnell-k .hk svg{width:19px;height:19px}
+.schnell-k.gut .hk{color:#9DBB96}
+.schnell-k.gut .r-an{stroke:#8FAE8A}
+.schnell-k.gut.fertig .ring{background:linear-gradient(135deg,#D3E3C9 0%,#9DBB96 45%,#6E8F6A 100%);box-shadow:0 6px 16px -6px rgba(143,174,138,.7)}
+.schnell-k.gut.fertig .hk{color:#132012}
+.gutliste .dankzeile .nr.an{background:linear-gradient(135deg,#D3E3C9 0%,#9DBB96 45%,#6E8F6A 100%);color:#132012}
+.guttag ul li::marker{color:#8FAE8A}
+.gut-wt{display:inline-block;min-width:30px;font:700 11.5px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 /* Frühwarnzeichen: ergänzt nur, ändert keine bestehenden Klassen */
 :root { --fw-stabil: #5B8FD0; --fw-achtsam: #D9AE4E; --fw-handeln: #C8417A; }
 html[data-lk="morgen"] { --fw-stabil: #3A6FB0; --fw-achtsam: #9C7414; --fw-handeln: #A8285F; }
