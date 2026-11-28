@@ -1,0 +1,74 @@
+name: Apps Script aktualisieren
+
+# Lädt den Code aus apps-script/ in dein Apps-Script-Projekt hoch und
+# stellt ihn als neue Version der bestehenden Bereitstellung bereit.
+# Der Link auf dem Home-Bildschirm bleibt dabei gleich.
+#
+# Benötigte Secrets (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON          Inhalt von ~/.clasprc.json nach "clasp login"
+#   APPS_SCRIPT_ID        Skript-ID (Apps Script → Projekteinstellungen)
+#   APPS_SCRIPT_DEPLOY_ID Bereitstellungs-ID (die lange ID, wie APP_ID)
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+
+jobs:
+  bereitstellen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Secrets vorhanden?
+        id: pruefen
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+          DEPLOY_ID: ${{ secrets.APPS_SCRIPT_DEPLOY_ID }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ] || [ -z "$DEPLOY_ID" ]; then
+            echo "::notice::Apps Script wird nicht aktualisiert: Secrets CLASPRC_JSON, APPS_SCRIPT_ID und APPS_SCRIPT_DEPLOY_ID fehlen noch."
+            echo "bereit=nein" >> "$GITHUB_OUTPUT"
+          else
+            echo "bereit=ja" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.pruefen.outputs.bereit == 'ja'
+
+      - uses: actions/setup-node@v4
+        if: steps.pruefen.outputs.bereit == 'ja'
+        with:
+          node-version: 20
+
+      - name: Anmeldung und Projekt einrichten
+        if: steps.pruefen.outputs.bereit == 'ja'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > apps-script/.clasp.json
+
+      - name: Code hochladen
+        if: steps.pruefen.outputs.bereit == 'ja'
+        working-directory: apps-script
+        run: npx --yes @google/clasp@2.4.2 push --force
+
+      - name: Neue Version bereitstellen
+        if: steps.pruefen.outputs.bereit == 'ja'
+        working-directory: apps-script
+        env:
+          DEPLOY_ID: ${{ secrets.APPS_SCRIPT_DEPLOY_ID }}
+        run: npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOY_ID" --description "GitHub ${GITHUB_SHA::7}"
+
+      - name: Anmeldedaten entfernen
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" apps-script/.clasp.json
