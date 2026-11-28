@@ -46,3 +46,13 @@ Direktlink: `?v=fwz`.
 - Den persönlichen Link bekommst du im Editor mit `linkOhneBanner` (steht im Ausführungsprotokoll) oder in der App unter Zahnrad → Auf den Startbildschirm. Danach führen auch die Erinnerungs-Mails zur Hülle.
 - Adresse der Hülle: `https://crank3ahead.github.io/HealthCoach/kompass/?a=…&k=…` (Konstante `APP.huelle` in `Code.gs`).
 - Neuen Schlüssel erzwingen: `APP_SCHLUESSEL` in den Skript-Eigenschaften löschen, dann `linkOhneBanner` erneut ausführen.
+
+## Automatisch aus GitHub bereitstellen
+Der Ablauf `.github/workflows/apps-script.yml` lädt nach jedem Merge mit Änderungen in `apps-script/` den Code per [clasp](https://github.com/google/clasp) ins Apps-Script-Projekt und macht daraus eine neue Version der bestehenden Bereitstellung. Der Link bleibt gleich.
+
+Einmalig nötig:
+1. Apps-Script-API einschalten: https://script.google.com/home/usersettings
+2. Am Rechner (Node.js nötig): `npx @google/clasp@2.4.2 login`, dann den Inhalt von `~/.clasprc.json` als Secret `CLASPRC_JSON` anlegen.
+3. Secrets `APPS_SCRIPT_ID` (Projekteinstellungen → Skript-ID) und `APPS_SCRIPT_DEPLOY_ID` (Bereitstellungs-ID, wie `APP_ID`).
+
+Achtung: `clasp push` ersetzt alle Dateien im Apps-Script-Projekt. Dateien, die nur dort liegen (z. B. `Datenuebernahme`), werden entfernt. `appsscript.json` steht deshalb auf Zugriff „Jeder“ (`ANYONE_ANONYMOUS`), passend zur Hülle.
