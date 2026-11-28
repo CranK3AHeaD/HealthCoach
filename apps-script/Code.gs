@@ -24,15 +24,16 @@ const SCHEMA = {
                 'material', 'hinweis', 'favorit', 'schritte', 'wirkung', 'ausloeser', 'quelle', 'status'],
   SkillLog:    ['id', 'skillId', 'datum', 'vorher', 'nachher', 'sterne', 'notiz', 'ausloeser'],
   Dankbarkeit: ['id', 'datum', 'nr', 'text'],
+  GutGemacht:  ['id', 'datum', 'nr', 'text'],
   CheckIns:    ['id', 'datum', 'art', 'schlaf', 'energie', 'stimmung', 'tag', 'notiz'],
   Fruehwarnzeichen: ['id', 'name', 'kategorie', 'woran', 'gewicht', 'alarm', 'hilfe', 'skill', 'auto', 'reihenfolge'],
   FwEintraege: ['id', 'datum', 'zeichen'],
   FwEinstellungen: ['id', 'achtsam', 'handeln', 'tage', 'person', 'personNr', 'praxis', 'praxisNr']
 };
 
-const SCHEMA_VERSION = '4';
+const SCHEMA_VERSION = '5';
 
-const ZIELE = ['kompass', 'sos', 'dank', 'woche', 'rueckblick', 'checkin', 'fwz'];
+const ZIELE = ['kompass', 'sos', 'dank', 'woche', 'rueckblick', 'checkin', 'fwz', 'gut'];
 
 /* ---------- Web-App ---------- */
 
@@ -297,7 +298,7 @@ function sendeMail_(art) {
   const link = function (v, p) { return basis + 'v=' + v + (p ? '&p=' + p : ''); };
   const TEXT = {
     morgen: ['Guten Morgen', 'Wie hast du geschlafen, und wie startest du in den Tag?', [['Morgen-Check-in', link('checkin', 'morgen')], ['Anspannung eintragen', link('kompass')]]],
-    abend: ['Wie war dein Tag?', 'Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, und wofür bist du heute dankbar?', [['Abend-Check-in', link('checkin', 'abend')], ['Dankbarkeit', link('dank')], ['Anspannung eintragen', link('kompass')]]],
+    abend: ['Wie war dein Tag?', 'Guten Abend. Nimm dir eine Minute für dich: Wie geht es dir gerade, wofür bist du heute dankbar, und was hast du gut gemacht?', [['Abend-Check-in', link('checkin', 'abend')], ['Dankbarkeit', link('dank')], ['Gut gemacht', link('gut')], ['Anspannung eintragen', link('kompass')]]],
     woche: ['Dein Wochenrückblick', 'Die Woche ist fast vorbei. Schau mit ruhigem Blick zurück: Was hat dir gutgetan?', [['Wochenrückblick', link('woche')]]],
     ansp: ['Kurz innehalten', 'Wie angespannt bist du gerade, von 0 bis 10?', [['Anspannung eintragen', link('kompass')], ['SOS', link('sos')]]]
   }[art];
